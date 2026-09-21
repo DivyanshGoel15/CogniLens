@@ -3,3 +3,8 @@ data/processed/
 __pycache__/
 *.pyc
 .pytest_cache/
+node_modules/
+client/node_modules/
+dist/
+client/dist/
+.DS_Store
