@@ -327,5 +327,60 @@ class TestEvaluationMetrics(unittest.TestCase):
         self.assertGreater(summary.avg_grounding_score, 0.0)
 
 
+class TestRAGPipelineAndService(unittest.TestCase):
+    """Tests high-level RAGPipeline facade and backend RAGService adapter."""
+
+    def setUp(self) -> None:
+        self.mock_retriever = MagicMock()
+        self.mock_retriever.retrieve.return_value = [
+            SearchResult(
+                chunk_id="c01",
+                document_id="doc1",
+                filename="sample.pdf",
+                source="sample.pdf",
+                page_number=1,
+                chunk_index=0,
+                section="Transport Layer",
+                content_type="text",
+                table_present=False,
+                text="Transport layer provides end-to-end communication via TCP and UDP.",
+                score=0.92,
+                blob_url="https://blob.mock/documents/sample.pdf",
+            )
+        ]
+
+    def test_pipeline_retrieve_chunks_and_context(self) -> None:
+        from rag.retrieval.pipeline import RAGPipeline
+        pipeline = RAGPipeline(retriever=self.mock_retriever)
+        
+        chunks = pipeline.retrieve_chunks("What is TCP?", top_k=2, rerank=True)
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].chunk_id, "c01")
+
+        ctx = pipeline.retrieve_context("What is TCP?", top_k=2)
+        self.assertEqual(ctx.chunk_count, 1)
+        self.assertIn("[Source 1]", ctx.formatted_context)
+        self.assertEqual(len(ctx.citations), 1)
+        self.assertEqual(ctx.citations[0].document_name, "sample.pdf")
+
+    def test_backend_rag_service_adapter(self) -> None:
+        from rag.retrieval.pipeline import RAGPipeline
+        from server.app.services.rag_service import RAGService
+        
+        pipeline = RAGPipeline(retriever=self.mock_retriever)
+        service = RAGService(pipeline=pipeline)
+
+        grounded = service.get_grounded_context("What is TCP?")
+        self.assertIn("[Source 1]", grounded.formatted_context)
+
+        chunks = service.search_chunks("What is TCP?")
+        self.assertEqual(len(chunks), 1)
+
+        citations = service.get_citations("What is TCP?")
+        self.assertEqual(len(citations), 1)
+        self.assertEqual(citations[0]["citation_id"], "[Source 1]")
+        self.assertEqual(citations[0]["page_number"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
