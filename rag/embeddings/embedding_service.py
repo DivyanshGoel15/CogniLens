@@ -109,7 +109,7 @@ class EmbeddingService:
             )
             return self._client
         except Exception as e:
-            raise EmbeddingConfigError(f"Failed to initialize AzureOpenAI client: {e}") from e
+            raise EmbeddingConfigError(f"Failed to initialize Azure OpenAI client: {e}") from e
 
     def embed_text(self, text: str) -> List[float]:
         """Generate an embedding vector for a single string.
