@@ -1,0 +1,42 @@
+Generate a pedagogical multiple-choice quiz based on the provided document material.
+
+Topic: {topic}
+Target Difficulty: {difficulty}
+Number of Questions: {num_questions}
+
+Document Context:
+---
+{context}
+---
+
+Guidelines for Quiz Generation:
+1. Generate exactly {num_questions} high-quality questions.
+2. Each question MUST have 4 options (A, B, C, D) with exactly one correct option.
+3. Distractors (wrong answers) should represent common misconceptions or subtle conceptual errors, not obvious joke choices.
+4. Include a detailed, educational explanation for why the correct option is right.
+5. Provide a clear option explanation for each choice (A, B, C, D).
+6. Format your output strictly as a JSON object matching the QuizResponse schema:
+   {{
+     "title": "Quiz on {topic}",
+     "topic": "{topic}",
+     "total_questions": {num_questions},
+     "target_difficulty": "{difficulty}",
+     "questions": [
+       {{
+         "question_id": 1,
+         "question_text": "Sample question text",
+         "options": [
+           {{"option_id": "A", "text": "Option A text", "explanation": "Explanation for A"}},
+           {{"option_id": "B", "text": "Option B text", "explanation": "Explanation for B"}},
+           {{"option_id": "C", "text": "Option C text", "explanation": "Explanation for C"}},
+           {{"option_id": "D", "text": "Option D text", "explanation": "Explanation for D"}}
+         ],
+         "correct_option_id": "A",
+         "explanation": "Detailed explanation for why A is correct",
+         "difficulty": "{difficulty}",
+         "topic": "{topic}"
+       }}
+     ]
+   }}
+
+Return ONLY valid JSON.

@@ -1,0 +1,15 @@
+Analyze the student's quiz performance assessment data and generate personalized learning recommendations and next study steps.
+
+Quiz Performance Data:
+---
+{assessment_data}
+---
+
+Analysis Requirements:
+1. Provide an executive summary of overall progress and accuracy score.
+2. Identify specific weak topics where accuracy fell below 70%, detailing conceptual gaps and suggested remediation.
+3. Recommend 2-4 prioritized actionable next study steps (e.g. re-read specific sections, practice flashcards, retake quiz at easier/harder difficulty).
+4. Recommend whether to "Increase", "Maintain", or "Decrease" study material difficulty.
+5. Format strictly as JSON matching the RecommendationResponse schema.
+
+Return ONLY valid JSON.

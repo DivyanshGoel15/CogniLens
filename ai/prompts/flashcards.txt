@@ -1,0 +1,33 @@
+Generate a deck of active recall flashcards based on the provided document context.
+
+Topic: {topic}
+Number of Flashcards: {num_cards}
+
+Document Context:
+---
+{context}
+---
+
+Flashcard Design Rules:
+1. Make front questions atomic (testing a single specific fact, concept, or relationship).
+2. Keep back answers direct, precise, and concise (1-3 sentences max).
+3. Provide a helpful hint for each card to aid memory retrieval.
+4. Assign an appropriate difficulty rating (Easy, Medium, Hard) to each card.
+5. Format your output strictly as a JSON object matching the FlashcardResponse schema:
+   {{
+     "title": "Flashcards: {topic}",
+     "topic": "{topic}",
+     "total_cards": {num_cards},
+     "cards": [
+       {{
+         "card_id": 1,
+         "front_question": "Atomic question?",
+         "back_answer": "Concise answer.",
+         "hint": "Helpful hint",
+         "topic": "{topic}",
+         "difficulty": "Medium"
+       }}
+     ]
+   }}
+
+Return ONLY valid JSON.

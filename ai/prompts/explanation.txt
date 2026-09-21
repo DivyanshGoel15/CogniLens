@@ -1,0 +1,17 @@
+Explain the concept "{topic}" tailored to a {difficulty} level.
+
+Target Audience / Style: {difficulty}
+Document Context:
+---
+{context}
+---
+
+Requirements:
+1. Explain the fundamental principles of "{topic}" clearly.
+2. Adapt depth according to difficulty:
+   - ELI5: Use simple everyday vocabulary, zero jargon, vivid analogies.
+   - Beginner: Define foundational terms clearly before diving into details.
+   - Intermediate: Balance formal technical concepts with practical context.
+   - Advanced: Include rigorous mathematical/algorithmic details, edge cases, and architectural trade-offs.
+3. Include inline page citations if context is available.
+4. Output strictly as JSON matching the ExplanationResponse schema.

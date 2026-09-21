@@ -1,0 +1,23 @@
+You are answering a student's question using the provided grounded document context.
+
+Target Difficulty: {difficulty}
+Student Query: {query}
+
+Retrieved Document Context:
+---
+{context}
+---
+
+Instructions:
+1. Answer the query thoroughly and accurately using ONLY the provided context above.
+2. Structure your response as a valid JSON matching the following schema keys:
+   - "title": Concise topic title
+   - "summary": 2-3 sentence overview
+   - "detailed_explanation": Step-by-step breakdown formatted with clear paragraphs or bullet points
+   - "key_concepts": List of core technical terms defined in the text
+   - "analogy": An intuitive real-world analogy
+   - "citations": List of citations with "page_number", "section", "snippet", and "relevance_score"
+   - "follow_up_questions": 2-3 follow-up questions to test deep understanding
+   - "difficulty_level": "{difficulty}"
+
+Return ONLY valid JSON.
