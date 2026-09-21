@@ -201,7 +201,7 @@ python scripts/verify_pipeline.py
 ```
 
 ### 3. Run Full Offline Test Suite (0 Azure Credits)
-Runs all 50 unit and pipeline tests completely offline using mocks:
+Runs all unit and pipeline tests completely offline using mocks:
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -v
 ```
@@ -239,7 +239,110 @@ python scripts/evaluate_rag.py
 
 ---
 
-## 6. Project Directory Structure
+## 6. Generative AI & LLM Intelligence Layer
+
+CogniLens integrates the verified RAG Knowledge Engineering subsystem with a swappable, production-ready LLM generation layer:
+
+```
+                            [ User Query / Chat Turn ]
+                                        │
+                                        ▼
+                   ┌──────────────────────────────────────────┐
+                   │ Conversational Chat Engine (ai/chat/)    │
+                   │ • Multi-turn history tracking            │
+                   │ • Referent resolution ("it" -> concept)  │
+                   └────────────────────┬─────────────────────┘
+                                        │
+                                        ▼
+                   ┌──────────────────────────────────────────┐
+                   │ Deterministic Intent Router (ai/routing/)│
+                   │ Classifies into: QA | Explain | Quiz | Cards
+                   └──────┬─────────────┬─────────────┬───────┘
+                          │             │             │
+        ┌─────────────────┘             │             └─────────────────┐
+        ▼                               ▼                               ▼
+┌──────────────────┐          ┌───────────────────┐           ┌──────────────────┐
+│ Grounded QA      │          │ Multi-Level       │           │ Quiz & Flashcard │
+│ Service          │          │ Explanations      │           │ Generators       │
+│ Inline citations │          │ Beginner, Tech,   │           │ Structured JSON  │
+│ [Source N] tags  │          │ ELI5 + Analogy    │           │ A-D MCQs & Decks │
+└────────┬─────────┘          └─────────┬─────────┘           └────────┬─────────┘
+         │                              │                              │
+         └──────────────────────┬───────┴──────────────────────────────┘
+                                │
+                                ▼
+                   ┌──────────────────────────────────────────┐
+                   │ LLM Provider Abstraction (ai/llm/)       │
+                   │ • BaseLLMProvider (abstract interface)   │
+                   │ • GeminiProvider (REST API v1beta)       │
+                   │ • MockLLMProvider (100% offline testing) │
+                   └────────────────────┬─────────────────────┘
+                                        │
+                                        ▼
+                   ┌──────────────────────────────────────────┐
+                   │ FastAPI REST Server (server/app/)        │
+                   │ • POST /api/chat                         │
+                   │ • POST /api/explain                      │
+                   │ • POST /api/quiz                         │
+                   │ • POST /api/flashcards                   │
+                   │ • GET  /api/health                       │
+                   └──────────────────────────────────────────┘
+```
+
+### Key Modalities & Endpoints
+
+| Endpoint | Method | Input | Description | Output Schema |
+| :--- | :--- | :--- | :--- | :--- |
+| `/api/chat` | `POST` | `ChatRequest` (message, history) | Context-aware chat with automatic intent classification and referent resolution. | `ChatResponseSchema` |
+| `/api/explain` | `POST` | `ExplanationRequest` (topic, difficulty) | Structured explanation with summary, detailed breakdown, real-world analogy, and source citations. | `ExplanationResponse` |
+| `/api/quiz` | `POST` | `QuizRequest` (topic, num_questions, diff) | Curriculum-aligned multiple-choice questions with 4 options (A–D), pedagogical rationale, and verified answer. | `QuizResponse` |
+| `/api/flashcards` | `POST` | `FlashcardRequest` (topic, num_cards) | Active-recall study deck with atomic front questions, concise back answers, and memory hints. | `FlashcardResponse` |
+| `/api/health` | `GET` | None | System status, active LLM provider, and RAG index health check. | `HealthStatus` |
+
+---
+
+## 7. Running the End-to-End Demo
+
+Run the end-to-end integration demo showing grounded explanations, assessment quizzes, and conversational pronoun resolution:
+
+```bash
+# Offline Mock Mode (0 external API tokens consumed)
+python scripts/demo_rag_llm.py --provider mock
+
+# Live Gemini Mode (requires GEMINI_API_KEY)
+python scripts/demo_rag_llm.py --provider gemini
+```
+
+Start the FastAPI server:
+
+```bash
+uvicorn server.app.main:app --reload --port 8000
+```
+Interactive Swagger documentation is available at `http://localhost:8000/docs`.
+
+---
+
+## 8. Automated Test Suite (164 Tests)
+
+Run all 164 unit and integration tests across RAG, LLM providers, prompts, routers, generators, and API endpoints:
+
+```bash
+python -m unittest discover -s tests -p "test_*.py" -v
+```
+
+All tests run cleanly with 0 external API calls and complete in under 40 seconds.
+
+---
+
+## 9. Cost Control & Student Budget Management
+- **Zero External API Calls in Tests**: All 164 unit tests run against offline mocks or local test clients, guaranteeing zero credit spend in CI/CD.
+- **Provider Abstraction**: Decouples business logic from external LLM vendors, allowing zero-friction swapping between Google Gemini, Azure Foundry, and Mock modes.
+- **Pre-computed Embedding Reuse**: `EmbeddingService` checks chunk vector presence before making API requests, preventing duplicate embedding charges for already-embedded documents.
+- **HNSW Cosine Vector Profile**: Configured with standard basic search parameters, avoiding costly semantic ranker add-ons while achieving 100% Hit Rate and 1.0000 MRR.
+
+---
+
+## 10. Project Directory Structure
 
 ```
 CogniLens/

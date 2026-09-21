@@ -45,8 +45,8 @@ class DocumentIntelligenceProcessor:
             api_key: Azure Document Intelligence API key.
                      Defaults to AZURE_DOCUMENT_INTELLIGENCE_KEY env var.
         """
-        self.endpoint = endpoint or os.getenv("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
-        self.api_key = api_key or os.getenv("AZURE_DOCUMENT_INTELLIGENCE_KEY")
+        self.endpoint = endpoint if endpoint is not None else os.getenv("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
+        self.api_key = api_key if api_key is not None else os.getenv("AZURE_DOCUMENT_INTELLIGENCE_KEY")
 
         self._client: Optional[DocumentIntelligenceClient] = None
 

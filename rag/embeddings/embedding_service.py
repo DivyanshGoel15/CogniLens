@@ -55,13 +55,13 @@ class EmbeddingService:
         """
         self.endpoint = (
             endpoint
-            or os.getenv("AZURE_EMBEDDING_ENDPOINT")
-            or os.getenv("AZURE_OPENAI_ENDPOINT")
+            if endpoint is not None
+            else (os.getenv("AZURE_EMBEDDING_ENDPOINT") or os.getenv("AZURE_OPENAI_ENDPOINT"))
         )
         self.api_key = (
             api_key
-            or os.getenv("AZURE_EMBEDDING_API_KEY")
-            or os.getenv("AZURE_OPENAI_API_KEY")
+            if api_key is not None
+            else (os.getenv("AZURE_EMBEDDING_API_KEY") or os.getenv("AZURE_OPENAI_API_KEY"))
         )
         self.deployment = (
             deployment
