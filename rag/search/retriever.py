@@ -111,6 +111,7 @@ class Retriever:
         top_k: Optional[int] = None,
         filter_expr: Optional[str] = None,
         use_hybrid: bool = True,
+        mode: Optional[str] = None,
     ) -> List[SearchResult]:
         """Retrieve top relevant chunks for a user query.
 
@@ -118,7 +119,8 @@ class Retriever:
             query: The user search query string.
             top_k: Maximum number of chunks to return (defaults to self.top_k).
             filter_expr: Optional OData filter expression (e.g. "filename eq 'sample.pdf'").
-            use_hybrid: If True, combines text keyword search + vector search.
+            use_hybrid: If True, combines text keyword search + vector search (backwards compatibility).
+            mode: Search mode: 'hybrid' (default), 'vector', or 'keyword'.
 
         Returns:
             List of SearchResult objects sorted by relevance score.
@@ -126,21 +128,44 @@ class Retriever:
         if not query or not query.strip():
             return []
 
+        # Determine effective mode
+        if mode:
+            effective_mode = mode.lower()
+        else:
+            effective_mode = "hybrid" if use_hybrid else "vector"
+
         limit = top_k or self.top_k
         client = self._get_client()
-        embedder = self._get_embedding_service()
 
-        logger.info("Generating query embedding for: '%s'", query)
-        query_vector = embedder.embed_text(query)
+        search_text: Optional[str] = None
+        vector_queries: Optional[List[Any]] = None
 
-        # Configure VectorizedQuery
-        vector_query = VectorizedQuery(
-            vector=query_vector,
-            k_nearest_neighbors=limit,
-            fields="embedding",
-        )
-
-        search_text = query if use_hybrid else None
+        if effective_mode == "keyword":
+            search_text = query
+            vector_queries = None
+        elif effective_mode == "vector":
+            embedder = self._get_embedding_service()
+            logger.info("Generating query embedding for vector search: '%s'", query)
+            query_vector = embedder.embed_text(query)
+            vector_query = VectorizedQuery(
+                vector=query_vector,
+                k_nearest_neighbors=limit,
+                fields="embedding",
+            )
+            vector_queries = [vector_query]
+            search_text = None
+        else:  # hybrid
+            effective_mode = "hybrid"
+            embedder = self._get_embedding_service()
+            logger.info("Generating query embedding for hybrid search: '%s'", query)
+            query_vector = embedder.embed_text(query)
+            vector_query = VectorizedQuery(
+                vector=query_vector,
+                k_nearest_neighbors=limit,
+                fields="embedding",
+            )
+            vector_queries = [vector_query]
+            search_text = query
 
         select_fields = [
             "chunk_id",
@@ -156,12 +181,17 @@ class Retriever:
             "text",
         ]
 
-        logger.info("Executing %s search on index '%s' (top_k=%d)...", "hybrid" if use_hybrid else "vector", self.index_name, limit)
+        logger.info(
+            "Executing %s search on index '%s' (top_k=%d)...",
+            effective_mode,
+            self.index_name,
+            limit,
+        )
 
         try:
             raw_results = client.search(
                 search_text=search_text,
-                vector_queries=[vector_query],
+                vector_queries=vector_queries,
                 filter=filter_expr,
                 top=limit,
                 select=select_fields,

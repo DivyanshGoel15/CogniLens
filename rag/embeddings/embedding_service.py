@@ -168,6 +168,11 @@ class EmbeddingService:
         for chunk in chunks:
             if not chunk.text or not chunk.text.strip():
                 continue
+            # Skip if embedding is already populated (reuse pre-computed vectors to save Azure credits)
+            if chunk.embedding is not None and len(chunk.embedding) > 0:
+                cache_key = hashlib.sha256(chunk.text.encode("utf-8")).hexdigest()
+                self._cache[cache_key] = chunk.embedding
+                continue
             cache_key = hashlib.sha256(chunk.text.encode("utf-8")).hexdigest()
             if cache_key in self._cache:
                 chunk.embedding = self._cache[cache_key]

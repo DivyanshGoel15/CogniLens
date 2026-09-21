@@ -1,0 +1,66 @@
+[
+  {
+    "id": "q1",
+    "query": "What are the layers of the network protocol stack?",
+    "category": "architecture",
+    "expected_chunks": ["72e815ea_p1_c01", "72e815ea_p1_c05"],
+    "expected_page": 1,
+    "key_facts": ["Application", "Transport", "Network", "Data Link", "Physical"]
+  },
+  {
+    "id": "q2",
+    "query": "What is the transport layer responsible for and what protocols does it use?",
+    "category": "protocols",
+    "expected_chunks": ["72e815ea_p1_c01", "72e815ea_p1_c02"],
+    "expected_page": 1,
+    "key_facts": ["TCP", "UDP", "QUIC", "Segment", "Datagram"]
+  },
+  {
+    "id": "q3",
+    "query": "What is congestion control and what algorithms are used in TCP?",
+    "category": "congestion_control",
+    "expected_chunks": ["72e815ea_p2_c06"],
+    "expected_page": 2,
+    "key_facts": ["Tahoe", "Reno", "CUBIC", "AIMD", "BBR", "Kleinrock"]
+  },
+  {
+    "id": "q4",
+    "query": "What protocols are associated with the network layer?",
+    "category": "protocols",
+    "expected_chunks": ["72e815ea_p1_c01", "72e815ea_p1_c05"],
+    "expected_page": 1,
+    "key_facts": ["IPv4", "IPv6", "BGP", "Packet"]
+  },
+  {
+    "id": "q5",
+    "query": "What is the mathematical formula for throughput and Bandwidth-Delay Product BDP?",
+    "category": "mathematics",
+    "expected_chunks": ["72e815ea_p1_c04"],
+    "expected_page": 1,
+    "key_facts": ["BDP", "Bandwidth", "RTT", "Mathis", "Throughput"]
+  },
+  {
+    "id": "q6",
+    "query": "What are the review questions on page 2?",
+    "category": "review",
+    "expected_chunks": ["72e815ea_p2_c07"],
+    "expected_page": 2,
+    "key_facts": ["SACK", "Bandwidth-Delay Product", "UDP", "low-latency"]
+  },
+  {
+    "id": "q7",
+    "query": "Show the protocol data units PDU table for each layer",
+    "category": "tables",
+    "expected_chunks": ["72e815ea_p1_c01"],
+    "expected_page": 1,
+    "key_facts": ["Message", "Segment", "Packet", "Frame", "Bits"]
+  },
+  {
+    "id": "q8",
+    "query": "Contrast TCP selective acknowledgments SACK and cumulative ACK",
+    "category": "cognitive_evaluation",
+    "expected_chunks": ["72e815ea_p2_c07"],
+    "expected_page": 2,
+    "key_facts": ["SACK", "cumulative ACK", "packet loss recovery"]
+  }
+]
