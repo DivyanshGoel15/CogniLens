@@ -10,19 +10,24 @@ interface QuizConfigModalProps {
 
 export const QuizConfigModal: React.FC<QuizConfigModalProps> = ({ onStart, onClose }) => {
   const { materials } = useApp();
-  const [selectedCourse, setSelectedCourse] = useState<string>('Operating Systems');
+  const [selectedSourceId, setSelectedSourceId] = useState<string>('all');
   const [questionCount, setQuestionCount] = useState<number>(5);
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('intermediate');
   const [questionType, setQuestionType] = useState<QuestionType | 'all'>('all');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onStart({
-      course: selectedCourse,
+    const config: QuizConfig = {
       questionCount,
       difficulty,
       questionType
-    });
+    };
+    if (selectedSourceId !== 'all') {
+      config.sourceId = selectedSourceId;
+    } else {
+      config.course = 'All Courses';
+    }
+    onStart(config);
   };
 
   return (
@@ -62,18 +67,19 @@ export const QuizConfigModal: React.FC<QuizConfigModalProps> = ({ onStart, onClo
           {/* Target Course / Subject */}
           <div>
             <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-              Target Subject:
+              Target Document or Subject:
             </label>
             <select
-              value={selectedCourse}
-              onChange={(e) => setSelectedCourse(e.target.value)}
+              value={selectedSourceId}
+              onChange={(e) => setSelectedSourceId(e.target.value)}
               className="input-text"
             >
-              <option value="Operating Systems">Operating Systems (Deadlocks, Scheduling, Memory)</option>
-              <option value="Machine Learning">Machine Learning (Linear Regression, Loss, Backprop)</option>
-              <option value="DBMS">DBMS (Normalization, 3NF, BCNF, Relational Algebra)</option>
-              <option value="Java OOP">Java OOP (Polymorphism, Dynamic Dispatch, Interfaces)</option>
-              <option value="Computer Networks">Computer Networks (TCP/IP, Handshake, Congestion)</option>
+              <option value="all">All Indexed Materials (General Quiz)</option>
+              {materials.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.title} ({m.course})
+                </option>
+              ))}
             </select>
           </div>
 

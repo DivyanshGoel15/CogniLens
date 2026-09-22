@@ -13,8 +13,9 @@ export interface MaterialSource {
   status: IngestionStatus;
   processingProgress?: number;
   topics: string[];
-  course: 'Machine Learning' | 'DBMS' | 'Java OOP' | 'Operating Systems' | 'Computer Networks';
+  course: 'Machine Learning' | 'DBMS' | 'Java OOP' | 'Operating Systems' | 'Computer Networks' | 'Quantitative Aptitude' | 'Programming & OOP' | 'General Studies' | string;
   contentPreview?: string;
+  textContent?: string;
   thumbnailUrl?: string;
   sections?: {
     id: string;

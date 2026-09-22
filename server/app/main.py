@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from server.app.api.chat import router as chat_router
 from server.app.api.health import router as health_router
+from server.app.api.documents import router as documents_router
+from server.app.api.progress import router as progress_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,6 +39,8 @@ app.add_middleware(
 # Mount API routers
 app.include_router(health_router, prefix="/api")
 app.include_router(chat_router)
+app.include_router(documents_router)
+app.include_router(progress_router)
 
 
 @app.get("/", tags=["Root"])

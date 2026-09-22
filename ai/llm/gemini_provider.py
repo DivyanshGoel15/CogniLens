@@ -88,13 +88,24 @@ class GeminiProvider(BaseLLMProvider):
             }
 
         headers = {"Content-Type": "application/json"}
-        url = self._build_url()
+        models_to_try = [self.model_name, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-lite"]
+        response = None
 
-        try:
-            with httpx.Client(timeout=self.timeout) as client:
-                response = client.post(url, json=payload, headers=headers)
-        except Exception as exc:
-            raise LLMAPIError(f"HTTP request to Gemini API failed: {exc}") from exc
+        for model in models_to_try:
+            url = GEMINI_API_URL.format(model=model) + f"?key={self.api_key}"
+            try:
+                with httpx.Client(timeout=self.timeout) as client:
+                    resp = client.post(url, json=payload, headers=headers)
+                    if resp.status_code == 404:
+                        continue
+                    response = resp
+                    break
+            except Exception as exc:
+                logger.warning(f"Failed calling model {model}: {exc}")
+                continue
+
+        if response is None:
+            raise LLMAPIError("All Gemini model endpoints returned 404 or connection failures.")
 
         if response.status_code == 429:
             raise RateLimitError(
@@ -165,13 +176,24 @@ class GeminiProvider(BaseLLMProvider):
             }
 
         headers = {"Content-Type": "application/json"}
-        url = self._build_url()
+        models_to_try = [self.model_name, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-lite"]
+        response = None
 
-        try:
-            with httpx.Client(timeout=self.timeout) as client:
-                response = client.post(url, json=payload, headers=headers)
-        except Exception as exc:
-            raise LLMAPIError(f"HTTP request to Gemini API failed: {exc}") from exc
+        for model in models_to_try:
+            url = GEMINI_API_URL.format(model=model) + f"?key={self.api_key}"
+            try:
+                with httpx.Client(timeout=self.timeout) as client:
+                    resp = client.post(url, json=payload, headers=headers)
+                    if resp.status_code == 404:
+                        continue
+                    response = resp
+                    break
+            except Exception as exc:
+                logger.warning(f"Failed calling model {model}: {exc}")
+                continue
+
+        if response is None:
+            raise LLMAPIError("All Gemini model endpoints returned 404 or connection failures.")
 
         if response.status_code == 429:
             raise RateLimitError(

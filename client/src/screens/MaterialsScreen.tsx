@@ -16,7 +16,7 @@ import { MaterialUploadModal } from '../components/materials/MaterialUploadModal
 import { MaterialType } from '../types/material';
 
 export const MaterialsScreen: React.FC = () => {
-  const { materials, searchQuery, setSearchQuery } = useApp();
+  const { materials, searchQuery, setSearchQuery, deleteMaterial } = useApp();
   const [activeTab, setActiveTab] = useState<MaterialType | 'all'>('all');
   const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>('all');
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -160,7 +160,7 @@ export const MaterialsScreen: React.FC = () => {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
           {filteredMaterials.map((mat) => (
-            <MaterialCard key={mat.id} material={mat} />
+            <MaterialCard key={mat.id} material={mat} onDelete={(id) => deleteMaterial(id)} />
           ))}
         </div>
       )}

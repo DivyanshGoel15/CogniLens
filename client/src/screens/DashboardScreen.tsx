@@ -12,7 +12,8 @@ import {
   FileText,
   ScanEye,
   Layers,
-  ChevronRight
+  ChevronRight,
+  Award
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { progressService } from '../services/progressService';
@@ -26,17 +27,11 @@ export const DashboardScreen: React.FC = () => {
     setCurrentRoute,
     setPrefilledPrompt,
     openDocumentViewer,
-    startQuiz
+    startQuiz,
+    progress
   } = useApp();
 
-  const [progress, setProgress] = useState<LearningProgressState | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-
-  useEffect(() => {
-    progressService.getProgress().then(res => {
-      if (res.success) setProgress(res.data);
-    });
-  }, []);
 
   const handleAskAIQuick = () => {
     setCurrentRoute('ai-tutor');
@@ -174,135 +169,206 @@ export const DashboardScreen: React.FC = () => {
       )}
 
       {/* 3. Continue Learning & Learning Progress Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', marginBottom: '28px' }}>
-        {/* Continue Learning Card */}
-        <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-              <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Continue Learning
-              </div>
-              <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>
-                Resume Reading
-              </span>
-            </div>
+      {(() => {
+        const lastItem = progress?.lastStudied || (materials.length > 0 ? {
+          materialId: materials[0].id,
+          title: materials[0].title,
+          filename: materials[0].filename,
+          course: materials[0].course,
+          page: 1,
+          totalPages: materials[0].pagesCount || 10,
+          sectionTitle: materials[0].sections?.[0]?.title || `${materials[0].title} — Page 1`,
+          progressPercentage: Math.round((1 / (materials[0].pagesCount || 10)) * 100),
+          lastUpdated: 'Recently'
+        } : null);
 
-            <div style={{ display: 'flex', gap: '14px', alignItems: 'center', marginBottom: '16px' }}>
-              <div
-                style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: '10px',
-                  backgroundColor: 'var(--accent-primary-light)',
-                  color: 'var(--accent-primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}
-              >
-                <BookOpen size={22} />
-              </div>
+        const topicsDone = progress ? progress.courses.reduce((acc, c) => acc + c.topicsCompleted, 0) : 30;
+        const topicsTotal = progress ? progress.courses.reduce((acc, c) => acc + c.totalTopics, 0) : 38;
+        const completionPct = progress?.overallMastery || 78;
 
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', marginBottom: '28px' }}>
+            {/* Continue Learning Card */}
+            <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
-                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Machine Learning — Linear Regression
-                </h3>
-                <div style={{ fontSize: '0.785rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                  Section: Mean Squared Error Loss Formulation (p. 4)
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                  <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Continue Learning
+                  </div>
+                  <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>
+                    Resume Reading
+                  </span>
                 </div>
+
+                {lastItem ? (
+                  <>
+                    <div style={{ display: 'flex', gap: '14px', alignItems: 'center', marginBottom: '16px' }}>
+                      <div
+                        style={{
+                          width: '44px',
+                          height: '44px',
+                          borderRadius: '10px',
+                          backgroundColor: 'var(--accent-primary-light)',
+                          color: 'var(--accent-primary)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}
+                      >
+                        <BookOpen size={22} />
+                      </div>
+
+                      <div>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {lastItem.title}
+                        </h3>
+                        <div style={{ fontSize: '0.785rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          {lastItem.sectionTitle}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                        <span>Reading Progress</span>
+                        <span>{lastItem.progressPercentage}% completed (p. {lastItem.page}/{lastItem.totalPages})</span>
+                      </div>
+                      <div style={{ width: '100%', height: '7px', backgroundColor: 'var(--border-subtle)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
+                        <div style={{ width: `${lastItem.progressPercentage}%`, height: '100%', backgroundColor: 'var(--accent-primary)', borderRadius: 'var(--radius-full)', transition: 'width 300ms ease' }} />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    No material open yet. Select a document below to begin reading.
+                  </div>
+                )}
               </div>
+
+              {lastItem && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px', gap: '8px' }}>
+                  <button
+                    onClick={() => openDocumentViewer(lastItem.materialId, lastItem.page)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ gap: '6px' }}
+                  >
+                    <span>Jump to Page {lastItem.page}</span>
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Progress Bar */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                <span>Topic Completion</span>
-                <span>72% completed</span>
-              </div>
-              <div style={{ width: '100%', height: '7px', backgroundColor: 'var(--border-subtle)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
-                <div style={{ width: '72%', height: '100%', backgroundColor: 'var(--accent-primary)', borderRadius: 'var(--radius-full)' }} />
-              </div>
-            </div>
+            {/* Learning Progress Metrics (Specific to the active Continue Learning course/topic) */}
+            {(() => {
+              const activeCourseName = lastItem?.course || 'Operating Systems';
+              const courseObj = progress?.courses.find(c => c.course === activeCourseName) || {
+                course: activeCourseName,
+                masteryPercentage: 74,
+                topicsCompleted: 6,
+                totalTopics: 8,
+                strongTopics: ['Process Synchronization', 'Semaphores', 'CPU Scheduling'],
+                weakTopics: ['Deadlock Detection'],
+                recentScore: 80
+              };
+
+              return (
+                <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                      <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Learning Progress
+                      </div>
+                      <span className="badge badge-secondary" style={{ fontSize: '0.7rem', fontWeight: 600 }}>
+                        {activeCourseName}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '14px' }}>
+                      {/* Course Mastery */}
+                      <div style={{ backgroundColor: 'var(--bg-surface-subtle)', padding: '12px 14px', borderRadius: 'var(--radius-md)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>
+                          <Award size={13} color="var(--accent-primary)" />
+                          <span>Course Mastery</span>
+                        </div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
+                          {courseObj.masteryPercentage}%
+                        </div>
+                        <div style={{ fontSize: '0.6875rem', color: 'var(--color-success)', marginTop: '2px' }}>
+                          {activeCourseName} performance
+                        </div>
+                      </div>
+
+                      {/* Topics Completed in Course */}
+                      <div style={{ backgroundColor: 'var(--bg-surface-subtle)', padding: '12px 14px', borderRadius: 'var(--radius-md)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>
+                          <CheckCircle2 size={13} color="var(--color-success)" />
+                          <span>Topics Mastered</span>
+                        </div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
+                          {courseObj.topicsCompleted} / {courseObj.totalTopics}
+                        </div>
+                        <div style={{ fontSize: '0.6875rem', color: 'var(--accent-primary)', marginTop: '2px' }}>
+                          In {activeCourseName}
+                        </div>
+                      </div>
+
+                      {/* Quiz Score in Course */}
+                      <div style={{ backgroundColor: 'var(--bg-surface-subtle)', padding: '12px 14px', borderRadius: 'var(--radius-md)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>
+                          <TrendingUp size={13} color="var(--color-warning)" />
+                          <span>Quiz Accuracy</span>
+                        </div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
+                          {courseObj.recentScore}%
+                        </div>
+                        <div style={{ fontSize: '0.6875rem', color: 'var(--color-success)', marginTop: '2px' }}>
+                          Recent quiz score
+                        </div>
+                      </div>
+
+                      {/* Active Streak */}
+                      <div style={{ backgroundColor: 'var(--bg-surface-subtle)', padding: '12px 14px', borderRadius: 'var(--radius-md)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>
+                          <Flame size={13} color="var(--color-warning)" />
+                          <span>Active Streak</span>
+                        </div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
+                          {progress?.currentStreakDays || 6} Days
+                        </div>
+                        <div style={{ fontSize: '0.6875rem', color: 'var(--color-warning-text)', marginTop: '2px' }}>
+                          Consistent study
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Specific Concept Badges for this course */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.75rem' }}>
+                      <div style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
+                        {activeCourseName} Concept Breakdown:
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        {courseObj.strongTopics.map((st, idx) => (
+                          <span key={`s-${idx}`} className="badge badge-success" style={{ fontSize: '0.65rem' }}>
+                            ✓ {st}
+                          </span>
+                        ))}
+                        {courseObj.weakTopics.map((wt, idx) => (
+                          <span key={`w-${idx}`} className="badge badge-warning" style={{ fontSize: '0.65rem' }}>
+                            • {wt}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px', gap: '8px' }}>
-            <button
-              onClick={() => openDocumentViewer('mat-ml-linear', 4)}
-              className="btn btn-secondary btn-sm"
-              style={{ gap: '6px' }}
-            >
-              <span>Jump to Page 4</span>
-              <ChevronRight size={14} />
-            </button>
-          </div>
-        </div>
-
-        {/* Learning Progress Metrics (Clean, non-cluttered) */}
-        <div className="card" style={{ padding: '20px' }}>
-          <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '14px' }}>
-            Learning Progress
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
-            {/* Study Time */}
-            <div style={{ backgroundColor: 'var(--bg-surface-subtle)', padding: '12px 14px', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>
-                <Clock size={13} />
-                <span>Study Time</span>
-              </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
-                {progress?.totalStudyHours || 14.5} hrs
-              </div>
-              <div style={{ fontSize: '0.6875rem', color: 'var(--color-success)', marginTop: '2px' }}>
-                +2.4 hrs this week
-              </div>
-            </div>
-
-            {/* Topics Completed */}
-            <div style={{ backgroundColor: 'var(--bg-surface-subtle)', padding: '12px 14px', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>
-                <CheckCircle2 size={13} />
-                <span>Topics Mastered</span>
-              </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
-                30 / 38
-              </div>
-              <div style={{ fontSize: '0.6875rem', color: 'var(--accent-primary)', marginTop: '2px' }}>
-                78% course completion
-              </div>
-            </div>
-
-            {/* Quiz Accuracy */}
-            <div style={{ backgroundColor: 'var(--bg-surface-subtle)', padding: '12px 14px', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>
-                <TrendingUp size={13} />
-                <span>Quiz Accuracy</span>
-              </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
-                {progress?.quizAccuracy || 84}%
-              </div>
-              <div style={{ fontSize: '0.6875rem', color: 'var(--color-success)', marginTop: '2px' }}>
-                Top 10% in cohort
-              </div>
-            </div>
-
-            {/* Streak */}
-            <div style={{ backgroundColor: 'var(--bg-surface-subtle)', padding: '12px 14px', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>
-                <Flame size={13} color="var(--color-warning)" />
-                <span>Current Streak</span>
-              </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
-                {progress?.currentStreakDays || 6} Days
-              </div>
-              <div style={{ fontSize: '0.6875rem', color: 'var(--color-warning-text)', marginTop: '2px' }}>
-                Keep it going today!
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* 4. Your Materials Grid */}
       <div>

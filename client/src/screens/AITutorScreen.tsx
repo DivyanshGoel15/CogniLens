@@ -8,7 +8,9 @@ import {
   Filter,
   CheckCircle2,
   FileText,
-  Clock
+  Clock,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { aiService, INITIAL_CONVERSATION_MESSAGES } from '../services/aiService';
@@ -16,6 +18,7 @@ import { ChatMessage as ChatMessageType, SourceReference, MultimodalAttachment }
 import { ChatMessage } from '../components/ai-tutor/ChatMessage';
 import { MultimodalComposer } from '../components/ai-tutor/MultimodalComposer';
 import { GroundingContextPanel } from '../components/ai-tutor/GroundingContextPanel';
+import { ApiKeySetup } from '../components/ai-tutor/ApiKeySetup';
 
 interface ConversationSessionItem {
   id: string;
@@ -145,23 +148,63 @@ const PRESET_SESSIONS: ConversationSessionItem[] = [
   }
 ];
 
+const SESSIONS_STORAGE_KEY = 'cognilens_chat_sessions';
+
 export const AITutorScreen: React.FC = () => {
-  const { prefilledPrompt } = useApp();
-  const [sessions, setSessions] = useState<ConversationSessionItem[]>(PRESET_SESSIONS);
-  const [activeSessionId, setActiveSessionId] = useState<string>(PRESET_SESSIONS[0].id);
+  const { prefilledPrompt, newStudySessionSignal } = useApp();
+  const [sessions, setSessions] = useState<ConversationSessionItem[]>(() => {
+    try {
+      const stored = localStorage.getItem(SESSIONS_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed to parse chat sessions from localStorage', e);
+    }
+    return PRESET_SESSIONS;
+  });
+  const [activeSessionId, setActiveSessionId] = useState<string>(() => sessions[0]?.id || PRESET_SESSIONS[0].id);
   const [isLoading, setIsLoading] = useState(false);
-  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const messageListContainerRef = useRef<HTMLDivElement>(null);
+  const isUserSendingRef = useRef(false);
+  const lastSignalRef = useRef<number>(newStudySessionSignal);
 
-  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
-
+  // Persist sessions whenever they change
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeSession.messages]);
+    try {
+      localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
+    } catch (e) {
+      console.warn('Failed to save chat sessions to localStorage', e);
+    }
+  }, [sessions]);
+
+  // Handle + New Study Session trigger from AppContext / Sidebar
+  useEffect(() => {
+    if (newStudySessionSignal && newStudySessionSignal !== lastSignalRef.current) {
+      lastSignalRef.current = newStudySessionSignal;
+      handleNewSession();
+    }
+  }, [newStudySessionSignal]);
+
+  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0] || PRESET_SESSIONS[0];
+
+  // Scroll to top when active session changes so top content is visible
+  useEffect(() => {
+    if (messageListContainerRef.current) {
+      if (isUserSendingRef.current) {
+        messageListContainerRef.current.scrollTop = messageListContainerRef.current.scrollHeight;
+        isUserSendingRef.current = false;
+      } else {
+        messageListContainerRef.current.scrollTop = 0;
+      }
+    }
+  }, [activeSessionId]);
 
   const handleNewSession = () => {
     const newSess: ConversationSessionItem = {
       id: `sess-${Date.now()}`,
-      title: 'New Study Conversation',
+      title: `Study Session #${sessions.length + 1}`,
       courseTag: 'General',
       updatedAt: 'Just now',
       messages: [...INITIAL_CONVERSATION_MESSAGES]
@@ -170,7 +213,18 @@ export const AITutorScreen: React.FC = () => {
     setActiveSessionId(newSess.id);
   };
 
+  const handleDeleteSession = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (sessions.length <= 1) return; // Keep at least one session
+    const updated = sessions.filter(s => s.id !== id);
+    setSessions(updated);
+    if (activeSessionId === id) {
+      setActiveSessionId(updated[0].id);
+    }
+  };
+
   const handleSendMessage = async (text: string, attachments: MultimodalAttachment[]) => {
+    isUserSendingRef.current = true;
     const userMsg: ChatMessageType = {
       id: `usr-${Date.now()}`,
       role: 'user',
@@ -179,7 +233,6 @@ export const AITutorScreen: React.FC = () => {
       attachments
     };
 
-    // Update active session with user message
     const placeholderAiMsgId = `ai-${Date.now()}`;
     const initialAiMsg: ChatMessageType = {
       id: placeholderAiMsgId,
@@ -267,7 +320,6 @@ export const AITutorScreen: React.FC = () => {
     }
   };
 
-  // Collect all active source references from messages in this session
   const allSessionSources: SourceReference[] = activeSession.messages
     .flatMap(m => m.sources || [])
     .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
@@ -304,7 +356,7 @@ export const AITutorScreen: React.FC = () => {
           {sessions.map((sess) => {
             const isActive = sess.id === activeSessionId;
             return (
-              <button
+              <div
                 key={sess.id}
                 onClick={() => setActiveSessionId(sess.id)}
                 style={{
@@ -314,32 +366,108 @@ export const AITutorScreen: React.FC = () => {
                   border: `1px solid ${isActive ? 'var(--border-default)' : 'transparent'}`,
                   textAlign: 'left',
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  cursor: 'pointer',
                   transition: 'all var(--transition-fast)'
                 }}
               >
-                <div style={{ fontWeight: isActive ? 700 : 500, fontSize: '0.8125rem', color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {sess.title}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: isActive ? 700 : 500, fontSize: '0.8125rem', color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {sess.title}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.6875rem', color: 'var(--text-tertiary)', marginTop: '2px' }}>
+                    <span>{sess.courseTag}</span>
+                    <span>{sess.updatedAt}</span>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.6875rem', color: 'var(--text-tertiary)' }}>
-                  <span>{sess.courseTag}</span>
-                  <span>{sess.updatedAt}</span>
-                </div>
-              </button>
+
+                {sessions.length > 1 && (
+                  <button
+                    onClick={(e) => handleDeleteSession(sess.id, e)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-tertiary)',
+                      padding: '4px',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      opacity: isActive ? 1 : 0.6
+                    }}
+                    title="Delete Conversation"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>
       </aside>
 
       {/* 2. MAIN CHAT AREA */}
-      <main style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--bg-app)', position: 'relative' }}>
-        {/* Messages List */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+      <main style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--bg-app)', position: 'relative', overflow: 'hidden' }}>
+        {/* Sticky Active Chat Header with Controls */}
+        <div
+          style={{
+            height: '46px',
+            backgroundColor: 'var(--bg-surface)',
+            borderBottom: '1px solid var(--border-subtle)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 16px',
+            zIndex: 10
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+            <Sparkles size={16} color="var(--accent-primary)" />
+            <span style={{ fontWeight: 700, fontSize: '0.84375rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {activeSession.title}
+            </span>
+            <span className="badge badge-secondary" style={{ fontSize: '0.65rem' }}>
+              {activeSession.courseTag}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              onClick={() => messageListContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="btn btn-ghost btn-sm"
+              style={{ gap: '4px', fontSize: '0.75rem', padding: '3px 8px' }}
+              title="Scroll to Top of Conversation"
+            >
+              <ArrowUp size={13} />
+              <span>Top</span>
+            </button>
+
+            <button
+              onClick={() => messageListContainerRef.current?.scrollTo({ top: messageListContainerRef.current.scrollHeight, behavior: 'smooth' })}
+              className="btn btn-ghost btn-sm"
+              style={{ gap: '4px', fontSize: '0.75rem', padding: '3px 8px' }}
+              title="Scroll to Bottom"
+            >
+              <ArrowDown size={13} />
+              <span>Bottom</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Dynamically Scrollable Messages Container */}
+        <div
+          ref={messageListContainerRef}
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '4px 0 16px 0',
+            scrollBehavior: 'smooth'
+          }}
+        >
           {activeSession.messages.map((msg) => (
             <ChatMessage key={msg.id} message={msg} />
           ))}
-          <div ref={chatBottomRef} />
         </div>
 
         {/* Multimodal Composer Box */}

@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev:client": "npm run dev --prefix client",
+    "dev:server": "py -m uvicorn server.app.main:app --reload --port 8000",
     "build:client": "npm run build --prefix client"
   }
 }

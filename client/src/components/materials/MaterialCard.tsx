@@ -20,7 +20,16 @@ interface MaterialCardProps {
 }
 
 export const MaterialCard: React.FC<MaterialCardProps> = ({ material, onDelete }) => {
-  const { openDocumentViewer, startQuiz, setCurrentRoute, setPrefilledPrompt } = useApp();
+  const { openDocumentViewer, startQuiz, setCurrentRoute, setPrefilledPrompt, deleteMaterial } = useApp();
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onDelete) {
+      onDelete(material.id);
+    } else {
+      deleteMaterial(material.id);
+    }
+  };
 
   const handleAskAI = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -95,6 +104,14 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({ material, onDelete }
             <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>
               <CheckCircle size={10} /> Indexed
             </span>
+            <button
+              onClick={handleDelete}
+              className="btn btn-ghost btn-sm"
+              style={{ padding: '4px 6px', color: '#ef4444', borderRadius: '4px' }}
+              title="Remove Material"
+            >
+              <Trash2 size={14} />
+            </button>
           </div>
         </div>
 

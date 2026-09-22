@@ -8,13 +8,21 @@ interface FlashcardCardProps {
   currentIndex: number;
   totalCards: number;
   onRateConfidence: (confidence: FlashcardConfidence) => void;
+  onNext: () => void;
+  onPrev: () => void;
+  hasNext: boolean;
+  hasPrev: boolean;
 }
 
 export const FlashcardCard: React.FC<FlashcardCardProps> = ({
   card,
   currentIndex,
   totalCards,
-  onRateConfidence
+  onRateConfidence,
+  onNext,
+  onPrev,
+  hasNext,
+  hasPrev
 }) => {
   const { openDocumentViewer } = useApp();
   const [isFlipped, setIsFlipped] = useState(false);
@@ -31,14 +39,34 @@ export const FlashcardCard: React.FC<FlashcardCardProps> = ({
 
   return (
     <div style={{ maxWidth: '640px', margin: '0 auto', perspective: '1000px' }}>
-      {/* Progress & Deck Info */}
+      {/* Progress & Navigation */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-        <span className="badge badge-primary" style={{ fontSize: '0.75rem' }}>
-          {card.course} • {card.topic}
-        </span>
-        <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-          Card {currentIndex + 1} of {totalCards}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="badge badge-primary" style={{ fontSize: '0.75rem' }}>
+            {card.course} • {card.topic}
+          </span>
+          <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+            Card {currentIndex + 1} of {totalCards}
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button 
+            onClick={(e) => { e.stopPropagation(); onPrev(); setIsFlipped(false); }} 
+            disabled={!hasPrev}
+            className="btn btn-ghost btn-sm"
+            style={{ padding: '4px 8px', fontSize: '0.75rem', opacity: hasPrev ? 1 : 0.4 }}
+          >
+            &larr; Prev
+          </button>
+          <button 
+            onClick={(e) => { e.stopPropagation(); onNext(); setIsFlipped(false); }} 
+            disabled={!hasNext}
+            className="btn btn-ghost btn-sm"
+            style={{ padding: '4px 8px', fontSize: '0.75rem', opacity: hasNext ? 1 : 0.4 }}
+          >
+            Next &rarr;
+          </button>
+        </div>
       </div>
 
       {/* 3D Flip Card Container */}

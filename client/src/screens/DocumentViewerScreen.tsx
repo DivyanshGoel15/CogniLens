@@ -19,15 +19,18 @@ import { SelectionActionHUD } from '../components/document-viewer/SelectionActio
 import { useToast } from '../context/ToastContext';
 
 export const DocumentViewerScreen: React.FC = () => {
-  const { selectedMaterial, selectedPage, setCurrentRoute, setPrefilledPrompt, startQuiz } = useApp();
-  const { showToast } = useToast();
+  const {
+    materials,
+    selectedMaterial,
+    setSelectedMaterial,
+    selectedPage,
+    setCurrentRoute,
+    setPrefilledPrompt,
+    startQuiz,
+    recordDocumentRead
+  } = useApp();
 
-  const [activePage, setActivePage] = useState<number>(selectedPage || 1);
-  const [zoomLevel, setZoomLevel] = useState<number>(100);
-  const [selectedText, setSelectedText] = useState<string>('');
-  const [hudPosition, setHudPosition] = useState<{ x: number; y: number } | null>(null);
-
-  const material = selectedMaterial || {
+  const activeMaterial = selectedMaterial || materials[0] || {
     id: 'mat-os-unit3',
     title: 'OS — Unit 3 Deadlocks & Synchronization',
     filename: 'OS_Unit3_Deadlocks.pdf',
@@ -46,9 +49,20 @@ export const DocumentViewerScreen: React.FC = () => {
     ]
   };
 
+  const [activePage, setActivePage] = useState<number>(selectedPage || 1);
+  const [zoomLevel, setZoomLevel] = useState<number>(100);
+  const [selectedText, setSelectedText] = useState<string>('');
+  const [hudPosition, setHudPosition] = useState<{ x: number; y: number } | null>(null);
+
   useEffect(() => {
     if (selectedPage) setActivePage(selectedPage);
   }, [selectedPage]);
+
+  // When activePage changes, record progress
+  const changePage = (newPage: number) => {
+    setActivePage(newPage);
+    recordDocumentRead(activeMaterial, newPage);
+  };
 
   // Handle text selection in document reader
   const handleMouseUp = () => {
@@ -65,21 +79,244 @@ export const DocumentViewerScreen: React.FC = () => {
 
   const handleSummarizePage = () => {
     setCurrentRoute('ai-tutor');
-    setPrefilledPrompt(`Summarize page ${activePage} of ${material.filename} and highlight the key definitions.`);
+    let promptText = `Summarize page ${activePage} of ${activeMaterial.filename} (${activeMaterial.title}) and highlight key definitions.`;
+    if (activeMaterial.textContent) {
+      const pageText = getPageTextContent(activePage);
+      if (pageText) {
+        promptText = `Please summarize the following text from page ${activePage} of ${activeMaterial.filename}:\n\n"${pageText}"`;
+      }
+    }
+    setPrefilledPrompt(promptText);
   };
 
   const handleCreateQuizForPage = () => {
     startQuiz({
-      sourceId: material.id,
-      course: material.course,
-      topic: `${material.title} (Page ${activePage})`,
+      sourceId: activeMaterial.id,
+      course: activeMaterial.course,
+      topic: `${activeMaterial.title} (Page ${activePage})`,
       questionCount: 5,
       difficulty: 'intermediate',
       questionType: 'all'
     });
   };
 
-  const totalPages = material.pagesCount || 42;
+  const totalPages = activeMaterial.pagesCount || 10;
+  // Helper to extract text for the specific page
+  // Helper to extract text for the specific page
+  const getPageTextContent = (pageNum: number) => {
+    if (!activeMaterial.textContent) return null;
+    const pageMarker = `--- Page ${pageNum} ---`;
+    const nextMarker = `--- Page ${pageNum + 1} ---`;
+    if (activeMaterial.textContent.includes(pageMarker)) {
+      const start = activeMaterial.textContent.indexOf(pageMarker) + pageMarker.length;
+      const end = activeMaterial.textContent.includes(nextMarker)
+        ? activeMaterial.textContent.indexOf(nextMarker)
+        : activeMaterial.textContent.length;
+      return activeMaterial.textContent.slice(start, end).trim();
+    }
+    const charsPerPage = 1200;
+    const start = (pageNum - 1) * charsPerPage;
+    const slice = activeMaterial.textContent.slice(start, start + charsPerPage).trim();
+    return slice.length > 20 ? slice : null;
+  };
+
+  // Helper to render dynamic, page-specific and course-specific academic text
+  const renderDynamicPageContent = () => {
+    const extractedText = getPageTextContent(activePage);
+    const topicCount = activeMaterial.topics.length || 1;
+    const mainTopic = activeMaterial.topics[(activePage - 1) % topicCount] || activeMaterial.course;
+    const subTopic = activeMaterial.topics[activePage % topicCount] || 'Advanced Analysis';
+    const exactSection = activeMaterial.sections?.find(s => s.page === activePage);
+
+    if (extractedText) {
+      return (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#18181b', margin: 0 }}>
+              {activeMaterial.title} — Page {activePage}
+            </h2>
+            <span className="badge badge-accent" style={{ fontSize: '0.75rem' }}>{mainTopic}</span>
+          </div>
+          <div style={{ whiteSpace: 'pre-wrap', marginBottom: '20px', fontSize: '0.9375rem', lineHeight: 1.7, color: '#334155' }}>
+            {extractedText}
+          </div>
+          <p style={{ marginTop: '24px', fontSize: '0.825rem', color: '#64748b', fontStyle: 'italic', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
+            Tip: Highlight any snippet above to use the Selection Action HUD for AI Q&A, quiz creation, or flashcard deck generation.
+          </p>
+        </div>
+      );
+    }
+
+    if (exactSection) {
+      return (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#18181b', margin: 0 }}>
+              {exactSection.title}
+            </h2>
+            <span className="badge badge-primary" style={{ fontSize: '0.75rem' }}>Page {activePage}</span>
+          </div>
+          <p style={{ marginBottom: '18px', fontSize: '0.95rem', lineHeight: 1.7, color: '#1e293b' }}>
+            {exactSection.snippet}
+          </p>
+          <div style={{ backgroundColor: '#f8fafc', padding: '18px 20px', borderRadius: '8px', borderLeft: '4px solid #2563eb', margin: '22px 0' }}>
+            <h4 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '6px', color: '#1e293b' }}>
+              Core Formulation & Grounded Invariant
+            </h4>
+            <p style={{ fontSize: '0.875rem', color: '#334155', lineHeight: 1.6, margin: 0 }}>
+              In <strong>{activeMaterial.course}</strong>, <em>{mainTopic}</em> specifies formal safety conditions. System state verification guarantees that all transitions maintain invariant {'$\\mathcal{S}_{t+1} = f(\\mathcal{S}_t, U_t)$'}.
+            </p>
+          </div>
+          <p style={{ marginBottom: '16px', fontSize: '0.9375rem', lineHeight: 1.7, color: '#334155' }}>
+            When analyzing complex scenarios in {activeMaterial.title}, ensure step-by-step verification of {'$O(N \\log N)$'} complexity constraints and resource utilization parameters.
+          </p>
+        </div>
+      );
+    }
+
+    // Dynamic, page-specific academic content generator so every page (1..N) is unique
+    const pageModulo = ((activePage - 1) % 6);
+
+    switch (pageModulo) {
+      case 0: // Overview & Fundamentals
+        return (
+          <div>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#18181b', marginBottom: '14px' }}>
+              Section {activePage}.1 — Introduction to {mainTopic}
+            </h2>
+            <p style={{ marginBottom: '16px', fontSize: '0.9375rem', lineHeight: 1.7, color: '#334155' }}>
+              This section of <strong>{activeMaterial.title}</strong> lays down the primary definitions and scope for <em>{mainTopic}</em> in <strong>{activeMaterial.course}</strong>.
+            </p>
+            {activeMaterial.contentPreview && (
+              <blockquote style={{ margin: '16px 0', padding: '12px 16px', backgroundColor: '#f8fafc', borderLeft: '4px solid #3b82f6', borderRadius: '4px', fontStyle: 'italic', color: '#475569' }}>
+                "{activeMaterial.contentPreview}"
+              </blockquote>
+            )}
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a', margin: '20px 0 10px' }}>Key Learning Objectives:</h3>
+            <ul style={{ paddingLeft: '22px', margin: 0, fontSize: '0.9rem', color: '#334155', lineHeight: 1.7 }}>
+              <li>Define the core parameters governing <strong>{mainTopic}</strong> in academic contexts.</li>
+              <li>Examine structural dependencies between <em>{mainTopic}</em> and <em>{subTopic}</em>.</li>
+              <li>Formulate diagnostic criteria for solving typical course exam questions.</li>
+            </ul>
+          </div>
+        );
+
+      case 1: // Mathematical / Formal Theory
+        return (
+          <div>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#18181b', marginBottom: '14px' }}>
+              Section {activePage}.2 — Mathematical Principles & Invariants of {mainTopic}
+            </h2>
+            <p style={{ marginBottom: '16px', fontSize: '0.9375rem', lineHeight: 1.7, color: '#334155' }}>
+              Formally, <strong>{mainTopic}</strong> can be expressed as a constrained optimization problem or system graph relation {'$\\mathcal{G} = (\\mathcal{V}, \\mathcal{E})$'}.
+            </p>
+            <div style={{ backgroundColor: '#f1f5f9', padding: '18px 20px', borderRadius: '8px', borderLeft: '4px solid #0d9488', margin: '20px 0' }}>
+              <h4 style={{ fontSize: '0.925rem', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>
+                Governing Equation — Page {activePage}
+              </h4>
+              <p style={{ fontFamily: 'monospace', fontSize: '0.95rem', color: '#0f172a', backgroundColor: '#ffffff', padding: '10px 14px', borderRadius: '6px', border: '1px solid #cbd5e1', margin: 0 }}>
+                {'$$\\text{Cost}(x) = \\sum_{i=1}^{N} w_i \\cdot \\phi(x_i) + \\lambda \\cdot \\Omega(w)$$'}
+              </p>
+            </div>
+            <p style={{ marginBottom: '16px', fontSize: '0.9375rem', lineHeight: 1.7, color: '#334155' }}>
+              Where {'$\\lambda$'} represents the regularization boundary and {'$\\phi(x_i)$'} projects features into the target vector space.
+            </p>
+          </div>
+        );
+
+      case 2: // Algorithm & Methodology
+        return (
+          <div>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#18181b', marginBottom: '14px' }}>
+              Section {activePage}.3 — Execution Procedure & Algorithmic Steps
+            </h2>
+            <p style={{ marginBottom: '16px', fontSize: '0.9375rem', lineHeight: 1.7, color: '#334155' }}>
+              To solve problems involving <strong>{mainTopic}</strong> step-by-step, apply the following standard academic protocol:
+            </p>
+            <ol style={{ paddingLeft: '22px', margin: '16px 0', fontSize: '0.9rem', color: '#334155', lineHeight: 1.8 }}>
+              <li><strong>Initialization:</strong> Set initial state vectors {'$S_0$'} and compute resource allocation tables.</li>
+              <li><strong>Iterative Evaluation:</strong> Evaluate matrix transitions for <em>{subTopic}</em> until convergence threshold {'$\\epsilon < 10^{-4}$'} is met.</li>
+              <li><strong>Invariant Verification:</strong> Ensure non-negativity and safety conditions hold across all steps.</li>
+              <li><strong>Output Termination:</strong> Synthesize the final reduced state vector or classification output.</li>
+            </ol>
+          </div>
+        );
+
+      case 3: // Solved Example & Analysis
+        return (
+          <div>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#18181b', marginBottom: '14px' }}>
+              Section {activePage}.4 — Solved Practice Example & Exam Case Study
+            </h2>
+            <div style={{ backgroundColor: '#fffbe6', padding: '16px 20px', borderRadius: '8px', border: '1px solid #ffe58f', margin: '16px 0' }}>
+              <h4 style={{ fontSize: '0.925rem', fontWeight: 700, color: '#d48806', marginBottom: '6px' }}>
+                Exam Practice Question (Page {activePage}):
+              </h4>
+              <p style={{ fontSize: '0.875rem', color: '#595959', lineHeight: 1.6, margin: 0 }}>
+                Given a system operating under {mainTopic} constraints, determine whether the state is safe and calculate the minimum execution time.
+              </p>
+            </div>
+            <p style={{ fontWeight: 700, color: '#1e293b', marginTop: '16px', marginBottom: '8px' }}>Detailed Solution Walkthrough:</p>
+            <p style={{ fontSize: '0.9rem', lineHeight: 1.7, color: '#334155' }}>
+              Applying the step-by-step reduction rule from <strong>{activeMaterial.course}</strong>:
+              Calculate Need matrix {'$N = \\text{Max} - \\text{Allocation}$'}. Since {'$\\text{Available} \\ge N_i$'}, process {'$P_i$'} can finish, yielding a safe execution sequence.
+            </p>
+          </div>
+        );
+
+      case 4: // Tradeoffs & Complexity
+        return (
+          <div>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#18181b', marginBottom: '14px' }}>
+              Section {activePage}.5 — Performance Analysis & Trade-Off Matrix
+            </h2>
+            <p style={{ marginBottom: '16px', fontSize: '0.9375rem', lineHeight: 1.7, color: '#334155' }}>
+              Evaluating <strong>{mainTopic}</strong> requires balancing computational time complexity with memory overhead:
+            </p>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', margin: '18px 0' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f1f5f9', textAlign: 'left' }}>
+                  <th style={{ padding: '8px 12px', border: '1px solid #cbd5e1' }}>Metric / Aspect</th>
+                  <th style={{ padding: '8px 12px', border: '1px solid #cbd5e1' }}>Time Complexity</th>
+                  <th style={{ padding: '8px 12px', border: '1px solid #cbd5e1' }}>Space Complexity</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ padding: '8px 12px', border: '1px solid #cbd5e1', fontWeight: 600 }}>Standard Model</td>
+                  <td style={{ padding: '8px 12px', border: '1px solid #cbd5e1' }}>{'$O(N^2 \\cdot M)$'}</td>
+                  <td style={{ padding: '8px 12px', border: '1px solid #cbd5e1' }}>{'$O(N \\cdot M)$'}</td>
+                </tr>
+                <tr style={{ backgroundColor: '#fafafa' }}>
+                  <td style={{ padding: '8px 12px', border: '1px solid #cbd5e1', fontWeight: 600 }}>Optimized Strategy</td>
+                  <td style={{ padding: '8px 12px', border: '1px solid #cbd5e1' }}>{'$O(N \\log N)$'}</td>
+                  <td style={{ padding: '8px 12px', border: '1px solid #cbd5e1' }}>{'$O(N)$'}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        );
+
+      default: // Summary & Diagnostic Review
+        return (
+          <div>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#18181b', marginBottom: '14px' }}>
+              Section {activePage}.6 — Summary Review & Key Takeaways
+            </h2>
+            <p style={{ marginBottom: '16px', fontSize: '0.9375rem', lineHeight: 1.7, color: '#334155' }}>
+              Review notes for page {activePage} of <strong>{activeMaterial.filename}</strong>:
+            </p>
+            <div style={{ backgroundColor: '#f8fafc', padding: '16px 20px', borderRadius: '8px', borderLeft: '4px solid #6366f1', margin: '16px 0' }}>
+              <ul style={{ paddingLeft: '18px', margin: 0, fontSize: '0.875rem', color: '#334155', lineHeight: 1.8 }}>
+                <li><strong>Core Takeaway:</strong> <em>{mainTopic}</em> provides predictable guarantees within <strong>{activeMaterial.course}</strong>.</li>
+                <li><strong>Common Trap:</strong> Do not confuse static allocation with dynamic runtime preemption.</li>
+                <li><strong>Quiz Tip:</strong> Practice questions on page {activePage} test formulas and step-by-step state verification.</li>
+              </ul>
+            </div>
+          </div>
+        );
+    }
+  };
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr 320px', height: 'calc(100vh - 88px)', overflow: 'hidden' }}>
@@ -99,17 +336,17 @@ export const DocumentViewerScreen: React.FC = () => {
             Sections & Pages
           </div>
           <div style={{ fontSize: '0.725rem', color: 'var(--text-tertiary)', marginTop: '2px' }}>
-            {material.filename} ({totalPages} pages)
+            {activeMaterial.filename} ({totalPages} pages)
           </div>
         </div>
 
         {/* Sections list */}
         <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {material.sections && material.sections.length > 0 ? (
-            material.sections.map((sec) => (
+          {activeMaterial.sections && activeMaterial.sections.length > 0 ? (
+            activeMaterial.sections.map((sec) => (
               <button
                 key={sec.id}
-                onClick={() => setActivePage(sec.page)}
+                onClick={() => changePage(sec.page)}
                 style={{
                   padding: '9px 12px',
                   borderRadius: 'var(--radius-md)',
@@ -134,10 +371,10 @@ export const DocumentViewerScreen: React.FC = () => {
               </button>
             ))
           ) : (
-            Array.from({ length: Math.min(10, totalPages) }, (_, i) => i + 1).map((p) => (
+            Array.from({ length: Math.min(15, totalPages) }, (_, i) => i + 1).map((p) => (
               <button
                 key={p}
-                onClick={() => setActivePage(p)}
+                onClick={() => changePage(p)}
                 style={{
                   padding: '8px 12px',
                   borderRadius: 'var(--radius-md)',
@@ -170,7 +407,7 @@ export const DocumentViewerScreen: React.FC = () => {
         {/* Document Viewer Toolbar */}
         <div
           style={{
-            height: '46px',
+            height: '52px',
             backgroundColor: 'var(--bg-surface)',
             borderBottom: '1px solid var(--border-subtle)',
             display: 'flex',
@@ -182,10 +419,33 @@ export const DocumentViewerScreen: React.FC = () => {
             zIndex: 10
           }}
         >
+          {/* Material Switcher Dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <BookOpen size={16} color="var(--accent-primary)" />
+            <select
+              value={activeMaterial.id}
+              onChange={(e) => {
+                const found = materials.find(m => m.id === e.target.value);
+                if (found) {
+                  setSelectedMaterial(found);
+                  changePage(1);
+                }
+              }}
+              className="input-text"
+              style={{ padding: '4px 8px', fontSize: '0.8125rem', fontWeight: 600, maxWidth: '240px' }}
+            >
+              {materials.map(m => (
+                <option key={m.id} value={m.id}>
+                  {m.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Page Selector Controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
-              onClick={() => setActivePage(Math.max(1, activePage - 1))}
+              onClick={() => changePage(Math.max(1, activePage - 1))}
               disabled={activePage === 1}
               className="btn btn-ghost btn-sm"
               aria-label="Previous page"
@@ -196,7 +456,7 @@ export const DocumentViewerScreen: React.FC = () => {
               Page {activePage} of {totalPages}
             </span>
             <button
-              onClick={() => setActivePage(Math.min(totalPages, activePage + 1))}
+              onClick={() => changePage(Math.min(totalPages, activePage + 1))}
               disabled={activePage === totalPages}
               className="btn btn-ghost btn-sm"
               aria-label="Next page"
@@ -239,65 +499,12 @@ export const DocumentViewerScreen: React.FC = () => {
           >
             {/* Page Header Stamp */}
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e4e4e7', paddingBottom: '12px', marginBottom: '24px', fontSize: '0.75rem', color: '#71717a' }}>
-              <span>{material.title}</span>
-              <span>Page {activePage}</span>
+              <span style={{ fontWeight: 600 }}>{activeMaterial.title}</span>
+              <span>Page {activePage} of {totalPages}</span>
             </div>
 
-            {/* Simulated High-Res Document Body */}
-            {activePage === 42 ? (
-              <div>
-                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#18181b', marginBottom: '16px' }}>
-                  Section 7.4 — Resource Allocation Graph & Deadlock Detection
-                </h2>
-                <p style={{ marginBottom: '16px' }}>
-                  In computer systems with single-instance resource types, deadlock detection is directly solvable via graph-theoretic cycle detection on the directed <strong>Resource-Allocation Graph (RAG)</strong>.
-                </p>
-
-                <div style={{ backgroundColor: '#f4f4f5', padding: '16px', borderRadius: '8px', borderLeft: '4px solid #2563eb', margin: '20px 0' }}>
-                  <h4 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '6px' }}>
-                    Theorem 7.1 (Cycle Equivalence in Single-Instance Resources)
-                  </h4>
-                  <p style={{ fontSize: '0.875rem' }}>
-                    If each resource type in the system $R = &#123;R_1, R_2, \dots, R_m&#125;$ contains exactly one instance, then a cycle in the Resource Allocation Graph $G = (V, E)$ is both a <em>necessary and sufficient condition</em> for the existence of a deadlock.
-                  </p>
-                </div>
-
-                <p style={{ marginBottom: '16px' }}>
-                  An edge $P_i \to R_j$ signifies a <em>request edge</em>, meaning process $P_i$ is currently blocked waiting for resource $R_j$. Conversely, an assignment edge $R_j \to P_i$ denotes that resource $R_j$ has been allocated to process $P_i$.
-                </p>
-
-                <p>
-                  To detect cycles efficiently, algorithms such as <strong>Tarjan's strongly connected components algorithm</strong> or <strong>Depth-First Search (DFS)</strong> with back-edge detection run with time complexity O(|V| + |E|), where |V| = |P| + |R|.
-                </p>
-              </div>
-            ) : activePage === 18 ? (
-              <div>
-                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#18181b', marginBottom: '16px' }}>
-                  Section 7.2 — The Four Necessary Coffman Conditions
-                </h2>
-                <p style={{ marginBottom: '16px' }}>
-                  For a deadlock to arise in an operating system, all four of the following conditions must hold concurrently:
-                </p>
-                <ol style={{ paddingLeft: '24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <li><strong>Mutual Exclusion:</strong> At least one resource must be held in a non-shareable mode.</li>
-                  <li><strong>Hold and Wait:</strong> A process must be actively holding at least one resource and waiting to acquire additional resources held by other processes.</li>
-                  <li><strong>No Preemption:</strong> Resources cannot be preempted; a resource can only be released voluntarily by the process holding it.</li>
-                  <li><strong>Circular Wait:</strong> A closed chain of processes $&#123;P_0, P_1, \dots, P_n&#125;$ exists where each process waits for a resource held by the next.</li>
-                </ol>
-              </div>
-            ) : (
-              <div>
-                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#18181b', marginBottom: '16px' }}>
-                  {material.title} — Overview
-                </h2>
-                <p style={{ marginBottom: '16px' }}>
-                  This chapter examines core theoretical principles, synchronization mechanisms, and algorithm specifications for modern system design.
-                </p>
-                <p>
-                  Highlight any passage of text above to trigger the <strong>Selection HUD</strong> to explain, make flashcards, or generate a grounded quiz.
-                </p>
-              </div>
-            )}
+            {/* Dynamic Page Content */}
+            {renderDynamicPageContent()}
           </div>
         </div>
 
@@ -331,7 +538,7 @@ export const DocumentViewerScreen: React.FC = () => {
             </h3>
           </div>
           <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Contextual assistance grounded in Page {activePage}.
+            Contextual assistance grounded in Page {activePage} of {activeMaterial.filename}.
           </p>
         </div>
 
@@ -359,7 +566,7 @@ export const DocumentViewerScreen: React.FC = () => {
             Key Indexed Concepts:
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {material.topics.map((t, idx) => (
+            {activeMaterial.topics.map((t, idx) => (
               <div
                 key={idx}
                 style={{
@@ -384,7 +591,12 @@ export const DocumentViewerScreen: React.FC = () => {
           <button
             onClick={() => {
               setCurrentRoute('ai-tutor');
-              setPrefilledPrompt(`I am on page ${activePage} of ${material.filename}. Can you explain this concept in simple terms?`);
+              let promptText = `I am on page ${activePage} of ${activeMaterial.filename}. Can you explain this concept in simple terms?`;
+              const pageText = getPageTextContent(activePage);
+              if (pageText) {
+                promptText = `Can you explain the following text from page ${activePage} of ${activeMaterial.filename} in simple terms?\n\n"${pageText}"`;
+              }
+              setPrefilledPrompt(promptText);
             }}
             className="btn btn-primary btn-sm"
             style={{ width: '100%', justifyContent: 'center', gap: '6px' }}

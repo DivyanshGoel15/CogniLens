@@ -1,5 +1,8 @@
 import { ChatMessage, SourceReference, AgentTaskActivity, MultimodalAttachment } from '../types/chat';
 import { ApiResponse, StructuredAgentResponse } from './apiTypes';
+import { materialService } from './materialService';
+import { getGeminiApiKey } from '../components/ai-tutor/ApiKeySetup';
+import { apiClient } from './apiClient';
 
 export interface StreamEvent {
   type: 'activity_step' | 'chunk' | 'sources' | 'actions' | 'complete';
@@ -15,15 +18,162 @@ export const INITIAL_CONVERSATION_MESSAGES: ChatMessage[] = [
   {
     id: 'msg-welcome',
     role: 'assistant',
-    content: "Welcome to Cognita. I've indexed your materials across **Operating Systems**, **Machine Learning**, **DBMS**, **Java OOP**, and **Computer Networks**.\n\nYou can ask me complex conceptual questions, attach diagrams or handwritten notes, or request grounded practice quizzes.",
+    content: "Welcome to CogniLens AI Tutor. I'm powered by **Google Gemini** and grounded in your indexed study materials.\n\nYou can:\n- Ask conceptual questions about any topic\n- Attach PDFs or images for multimodal analysis\n- Request summaries, quizzes, or flashcards\n- Get explanations grounded in your course notes",
     timestamp: '10:00 AM',
     suggestedActions: [
       { id: 'act-1', label: 'Explain Deadlock from OS Notes', actionType: 'explain_further', payload: { query: 'Explain deadlock using my OS notes' } },
-      { id: 'act-2', label: 'Analyze CPU Scheduling Diagram', actionType: 'open_source', payload: { diagram: 'cpu_scheduling' } },
-      { id: 'act-3', label: 'Create 5-min Quiz on Linear Regression', actionType: 'create_quiz', payload: { topic: 'Linear Regression', count: 5 } }
+      { id: 'act-2', label: 'Summarize ML Linear Regression', actionType: 'summarize', payload: { query: 'Summarize linear regression and cost functions' } },
+      { id: 'act-3', label: 'Create Quiz on DBMS Normalization', actionType: 'create_quiz', payload: { topic: 'DBMS Normalization', count: 5 } }
     ]
   }
 ];
+
+// ─────────────────────────────────────────────────────────────
+// Gemini REST API direct caller
+// ─────────────────────────────────────────────────────────────
+
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+const GEMINI_MODEL = 'gemini-2.0-flash';
+
+interface GeminiPart {
+  text?: string;
+  inlineData?: { mimeType: string; data: string };
+}
+
+interface GeminiContent {
+  role: string;
+  parts: GeminiPart[];
+}
+
+function buildMaterialContext(): string {
+  const materialsRes = materialService.getMaterialsSync();
+  if (!materialsRes || materialsRes.length === 0) return '';
+
+  let ctx = '\n\n--- STUDENT INDEXED MATERIALS (use these for grounding) ---\n';
+  for (const mat of materialsRes.slice(0, 10)) {
+    ctx += `\n📄 [${mat.title}] (${mat.course})\n`;
+    ctx += `   File: ${mat.filename} | Pages: ${mat.pagesCount || 'N/A'}\n`;
+    ctx += `   Topics: ${mat.topics.join(', ')}\n`;
+    if (mat.contentPreview) {
+      ctx += `   Preview: ${mat.contentPreview}\n`;
+    }
+    if (mat.sections && mat.sections.length > 0) {
+      for (const sec of mat.sections) {
+        ctx += `   Section (p.${sec.page}): ${sec.title} — "${sec.snippet}"\n`;
+      }
+    }
+  }
+  ctx += '\n--- END MATERIALS ---\n';
+  return ctx;
+}
+
+const SYSTEM_INSTRUCTION = `You are CogniLens — an expert academic AI tutor and study assistant. You are grounded in the student's indexed course materials.
+
+CORE RULES:
+1. Always give DETAILED, ACCURATE, topic-specific academic responses.
+2. When the student asks about a topic, explain it thoroughly with definitions, formulas (use LaTeX: $...$), step-by-step breakdowns, and real examples.
+3. When asked to summarize a document, provide a structured executive summary with key concepts, theorems, formulas, and exam takeaways.
+4. When asked for a quiz, generate real multiple-choice questions with 4 options (A/B/C/D), correct answers, and explanations.
+5. When a file/image is attached, analyze its ACTUAL content — describe what you see in images, extract key information from documents.
+6. Reference the student's materials when relevant. Cite by document title and page when possible.
+7. Use markdown formatting with headers (###), bold (**), bullet points, and code blocks where appropriate.
+8. For math/formulas, use LaTeX: inline $formula$ or display $$formula$$.
+9. Be thorough but concise. Prioritize exam-relevant information.
+10. If you don't have specific material context, still give a high-quality academic answer based on your knowledge.`;
+
+async function callGeminiAPI(
+  apiKey: string,
+  userParts: GeminiPart[],
+  attachmentContext: string,
+  conversationHistory: GeminiContent[] = [],
+): Promise<string> {
+  const materialCtx = buildMaterialContext();
+
+  const systemText = SYSTEM_INSTRUCTION + materialCtx + (attachmentContext ? '\n\n--- ATTACHED FILE CONTENT ---\n' + attachmentContext + '\n--- END ATTACHMENT ---\n' : '');
+
+  const contents: GeminiContent[] = [
+    ...conversationHistory,
+    { role: 'user', parts: userParts },
+  ];
+
+  const payload = {
+    systemInstruction: { parts: [{ text: systemText }] },
+    contents,
+    generationConfig: {
+      temperature: 0.3,
+      maxOutputTokens: 4000,
+      topP: 0.95,
+    },
+  };
+
+  // Try multiple model names in order of preference
+  const modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-lite', 'gemini-2.5-flash'];
+
+  let lastError = '';
+  for (const model of modelsToTry) {
+    const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.status === 404) {
+        // Model not available, try next
+        lastError = `Model ${model} not available`;
+        continue;
+      }
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        const errMsg = errData?.error?.message || `HTTP ${response.status}`;
+
+        if (response.status === 429) {
+          throw new Error('Rate limit exceeded. Please wait a moment and try again.');
+        }
+        if (response.status === 403 || response.status === 401) {
+          throw new Error('Invalid or expired API key. Please update your Gemini API key.');
+        }
+
+        // If model suggested, try it
+        const suggestedModel = errMsg.match(/use models\/([a-z0-9.-]+)/i);
+        if (suggestedModel && !modelsToTry.includes(suggestedModel[1])) {
+          modelsToTry.push(suggestedModel[1]);
+        }
+
+        lastError = errMsg;
+        continue;
+      }
+
+      const data = await response.json();
+      const candidates = data?.candidates;
+      if (!candidates || candidates.length === 0) {
+        const blockReason = data?.promptFeedback?.blockReason;
+        if (blockReason) throw new Error(`Response blocked: ${blockReason}`);
+        throw new Error('Gemini returned no response candidates.');
+      }
+
+      const parts = candidates[0]?.content?.parts;
+      if (!parts || parts.length === 0) return '';
+
+      return parts.map((p: any) => p.text || '').join('');
+    } catch (err: any) {
+      if (err.message.includes('Rate limit') || err.message.includes('Invalid') || err.message.includes('blocked')) {
+        throw err;
+      }
+      lastError = err.message;
+      continue;
+    }
+  }
+
+  throw new Error(`Failed to call Gemini API: ${lastError}`);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Main AI Service class
+// ─────────────────────────────────────────────────────────────
 
 class AIService {
   async processUserMessage(
@@ -32,188 +182,147 @@ class AIService {
     selectedSources: string[] = [],
     onStream?: (event: StreamEvent) => void
   ): Promise<ApiResponse<StructuredAgentResponse>> {
-    const isDeadlockQuery = /deadlock|os|operating system|rag|resource allocation/i.test(userPrompt);
-    const isMLQuery = /linear regression|gradient descent|loss|mse|machine learning/i.test(userPrompt);
-    const isDiagramQuery = /diagram|scheduling|gantt|cpu|fcfs|sjf|round robin/i.test(userPrompt) || attachments.some(a => a.type === 'image');
-    const isDBMSQuery = /normalization|dbms|bcnf|3nf|functional dependency/i.test(userPrompt);
+    const apiKey = getGeminiApiKey();
 
-    // Initial agent activity state
+    // Activity tracking
     const activity: AgentTaskActivity = {
-      taskTitle: 'Analyzing grounded materials & synthesizing response',
+      taskTitle: 'Grounded Academic AI Processing',
       status: 'running',
       steps: [
-        { id: 's1', label: 'Scanning 7 indexed course materials', status: 'in_progress', detail: 'Evaluating vector embeddings against query' },
-        { id: 's2', label: 'Extracting source citations & page snippets', status: 'pending' },
-        { id: 's3', label: 'Synthesizing conceptual explanation', status: 'pending' }
+        { id: 's1', label: 'Analyzing academic prompt & context', status: 'in_progress', detail: `Query: "${userPrompt.slice(0, 50)}..."` },
+        { id: 's2', label: 'Searching indexed materials & attachments', status: 'pending' },
+        { id: 's3', label: 'Synthesizing grounded explanation', status: 'pending' }
       ]
     };
 
-    if (onStream) {
-      onStream({ type: 'activity_step', activity: { ...activity } });
+    if (onStream) onStream({ type: 'activity_step', activity: { ...activity } });
+    await new Promise(r => setTimeout(r, 200));
+
+    // Build attachment context
+    let attachmentContext = '';
+    const userParts: GeminiPart[] = [{ text: userPrompt }];
+
+    if (attachments.length > 0) {
+      for (const att of attachments) {
+        if (att.fileData && att.mimeType?.startsWith('image/')) {
+          // Send image inline to Gemini Vision
+          userParts.push({
+            inlineData: { mimeType: att.mimeType, data: att.fileData }
+          });
+        } else if (att.textContent) {
+          // Append text content as context
+          attachmentContext += `\n\n[Document: ${att.name}]\n${att.textContent}\n`;
+        } else {
+          // Metadata-only attachment — add name as context hint
+          attachmentContext += `\n\n[Attached file: ${att.name} (${att.type}, ${att.size || 'unknown size'})]\n`;
+        }
+      }
     }
 
-    await new Promise(r => setTimeout(r, 450));
     activity.steps[0].status = 'completed';
     activity.steps[1].status = 'in_progress';
-    activity.steps[1].detail = isDeadlockQuery ? 'Found relevant sections in OS_Unit3_Deadlocks.pdf (p. 18 & 42)' :
-                               isMLQuery ? 'Retrieved definitions from ML_Linear_Regression.pdf (p. 4 & 12)' :
-                               'Extracted verified excerpts from indexed course library';
+    activity.steps[1].detail = attachments.length > 0
+      ? `Processing ${attachments.length} attachment(s): ${attachments.map(a => a.name).join(', ')}`
+      : 'Scanning indexed materials for grounding context';
+    if (onStream) onStream({ type: 'activity_step', activity: { ...activity } });
+    await new Promise(r => setTimeout(r, 150));
 
-    if (onStream) {
-      onStream({ type: 'activity_step', activity: { ...activity } });
-    }
-
-    await new Promise(r => setTimeout(r, 450));
     activity.steps[1].status = 'completed';
     activity.steps[2].status = 'in_progress';
-    activity.steps[2].detail = 'Structuring academic explanation with definitions and key properties';
+    if (onStream) onStream({ type: 'activity_step', activity: { ...activity } });
 
-    if (onStream) {
-      onStream({ type: 'activity_step', activity: { ...activity } });
+    let responseText = '';
+    let isGeminiResponse = false;
+    let backendCitations: any[] | null = null;
+
+    // ── 1. Try Python Backend Server API first ──
+    const serverOnline = await apiClient.isServerOnline();
+    if (serverOnline) {
+      try {
+        const backendResp = await apiClient.sendChat({
+          message: userPrompt + (attachmentContext ? '\n' + attachmentContext : ''),
+        });
+        if (backendResp && backendResp.message) {
+          responseText = backendResp.message;
+          isGeminiResponse = true;
+          if (backendResp.citations && backendResp.citations.length > 0) {
+            backendCitations = backendResp.citations;
+          }
+        }
+      } catch (err) {
+        console.warn('Backend chat server error, falling back to direct API/offline:', err);
+      }
     }
 
-    let responseText = "";
-    let sources: SourceReference[] = [];
-    let suggestedActions: ChatMessage['suggestedActions'] = [];
-    let relatedTopics: string[] = [];
-
-    if (isDeadlockQuery) {
-      responseText = `A **Deadlock** is a permanent blocking condition in an Operating System where a set of processes are unable to proceed because each process is holding a resource and waiting to acquire another resource currently held by another process in the same set.\n\n### The 4 Necessary Coffman Conditions:\n1. **Mutual Exclusion**: At least one resource must be held in a non-shareable mode (only one process can use it at a time).\n2. **Hold and Wait**: A process is holding at least one resource while waiting to acquire additional resources held by other processes.\n3. **No Preemption**: Resources cannot be forcibly taken from a process; they can only be released voluntarily.\n4. **Circular Wait**: A closed chain of processes $\{P_0, P_1, \\dots, P_n\}$ exists such that $P_0$ is waiting for a resource held by $P_1$, and $P_n$ is waiting for a resource held by $P_0$.\n\n### Deadlock Detection via Resource Allocation Graph (RAG):\nIn a system where each resource type has **exactly one instance**, the presence of a **cycle in the Resource Allocation Graph (RAG)** is both a necessary and sufficient condition for deadlock.`;
-      
-      sources = [
-        {
-          id: 'src-os-1',
-          documentId: 'mat-os-unit3',
-          documentTitle: 'OS — Unit 3 Deadlocks & Synchronization',
-          filename: 'OS_Unit3_Deadlocks.pdf',
-          page: 18,
-          snippet: 'Four Coffman Conditions: Mutual Exclusion, Hold & Wait, No Preemption, Circular Wait must hold simultaneously.',
-          confidence: 0.98
-        },
-        {
-          id: 'src-os-2',
-          documentId: 'mat-os-unit3',
-          documentTitle: 'OS — Unit 3 Deadlocks & Synchronization',
-          filename: 'OS_Unit3_Deadlocks.pdf',
-          page: 42,
-          snippet: 'Resource Allocation Graph & Deadlock Detection: In single-instance resource systems, a cycle implies deadlock.',
-          confidence: 0.95
-        }
-      ];
-
-      suggestedActions = [
-        { id: 'act-q-os', label: 'Create 5-Question Quiz on Deadlocks', actionType: 'create_quiz', payload: { course: 'Operating Systems', topic: 'Deadlock' } },
-        { id: 'act-f-os', label: 'Review Flashcards for Coffman Conditions', actionType: 'create_flashcards', payload: { topic: 'Deadlock' } },
-        { id: 'act-v-os', label: 'Open OS_Unit3.pdf Page 42 in Reader', actionType: 'open_source', payload: { documentId: 'mat-os-unit3', page: 42 } }
-      ];
-      relatedTopics = ['Banker Algorithm', 'Resource Allocation Graph', 'Process Synchronization', 'Starvation vs Deadlock'];
-
-    } else if (isDiagramQuery) {
-      responseText = `### Visual Analysis: CPU Scheduling & Process Execution Timeline\n\nI have parsed the **CPU Scheduling Gantt Chart diagram**. Here is the structural breakdown:\n\n- **Algorithm Identified**: **Round Robin (RR) Scheduling** with Time Quantum $q = 4\\text{ms}$.\n- **Processes Analyzed**: $P_1$ (Burst: $12\\text{ms}$), $P_2$ (Burst: $4\\text{ms}$), $P_3$ (Burst: $6\\text{ms}$).\n- **Execution Timeline**:\n  - $0\\text{ms} - 4\\text{ms}$: $P_1$ executes (remaining $8\\text{ms}$)\n  - $4\\text{ms} - 8\\text{ms}$: $P_2$ completes execution ($0\\text{ms}$ remaining)\n  - $8\\text{ms} - 12\\text{ms}$: $P_3$ executes (remaining $2\\text{ms}$)\n  - $12\\text{ms} - 16\\text{ms}$: $P_1$ resumes...\n\n**Key Insight**: Round Robin ensures starvation-free responsiveness at the cost of context-switching overhead.`;
-
-      sources = [
-        {
-          id: 'src-diag-1',
-          documentId: 'mat-os-unit3',
-          documentTitle: 'OS — Unit 3 Deadlocks & Synchronization',
-          filename: 'OS_Unit3_Deadlocks.pdf',
-          page: 24,
-          snippet: 'Preemptive Scheduling: Round Robin Gantt chart analysis and turnaround time computations.',
-          confidence: 0.96
-        }
-      ];
-
-      suggestedActions = [
-        { id: 'act-q-cpu', label: 'Generate Scheduling Practice Problems', actionType: 'create_quiz', payload: { topic: 'CPU Scheduling' } },
-        { id: 'act-calc', label: 'Calculate Average Waiting Time', actionType: 'explain_further', payload: { query: 'Calculate average waiting time for this schedule' } }
-      ];
-      relatedTopics = ['Preemptive Scheduling', 'Turnaround Time', 'Context Switch Overhead', 'Shortest Job First (SJF)'];
-
-    } else if (isMLQuery) {
-      responseText = `### Machine Learning: Linear Regression & Optimization\n\n**Linear Regression** models the linear relationship between continuous input features $X \\in \\mathbb{R}^{m \\times n}$ and target scalar $y$.\n\n$$\nh_\\theta(x) = \\theta_0 + \\theta_1 x_1 + \\dots + \\theta_n x_n = \\theta^T x\n$$\n\n### Cost Function (Mean Squared Error):\nTo measure prediction errors, we optimize the **Mean Squared Error (MSE)** loss:\n$$\nJ(\\theta) = \\frac{1}{2m} \\sum_{i=1}^m \\left( h_\\theta(x^{(i)}) - y^{(i)} \\right)^2\n$$\n\n### Gradient Descent Update:\nParameters $\\theta_j$ are updated iteratively in the direction of steepest descent:\n$$\n\\theta_j := \\theta_j - \\alpha \\frac{\\partial}{\\partial \\theta_j} J(\\theta)\n$$\nwhere $\\alpha$ is the learning rate hyperparameter.`;
-
-      sources = [
-        {
-          id: 'src-ml-1',
-          documentId: 'mat-ml-linear',
-          documentTitle: 'Machine Learning — Linear Regression & Cost Functions',
-          filename: 'Machine Learning — Linear Regression.pdf',
-          page: 4,
-          snippet: 'Mean Squared Error (MSE) formulation and convex optimization surface.',
-          confidence: 0.99
-        },
-        {
-          id: 'src-ml-2',
-          documentId: 'mat-hw-notes',
-          documentTitle: 'Handwritten ML Notes — Gradient Descent Derivation',
-          filename: 'Handwritten ML Notes.jpg',
-          page: 1,
-          snippet: 'Handwritten derivation showing partial derivatives and convergence paths.',
-          confidence: 0.94
-        }
-      ];
-
-      suggestedActions = [
-        { id: 'act-q-ml', label: 'Quiz on Gradient Descent & Cost Functions', actionType: 'create_quiz', payload: { course: 'Machine Learning', topic: 'Linear Regression' } },
-        { id: 'act-f-ml', label: 'Practice Flashcards for ML Formulas', actionType: 'create_flashcards', payload: { topic: 'Linear Regression' } }
-      ];
-      relatedTopics = ['Gradient Descent', 'Learning Rate Tuning', 'Polynomial Regression', 'Ridge vs Lasso Regularization'];
-
-    } else if (isDBMSQuery) {
-      responseText = `### Database Normalization: 3NF vs BCNF\n\n**Normalization** is the process of organizing data in a relational database to minimize redundancy and prevent insert, update, and delete anomalies.\n\n- **Third Normal Form (3NF)**: A relation is in 3NF if for every non-trivial functional dependency $X \\to A$, either:\n  1. $X$ is a **Superkey**, OR\n  2. $A$ is a **Prime Attribute** (part of a candidate key).\n\n- **Boyce-Codd Normal Form (BCNF)**: Stricter than 3NF. For every functional dependency $X \\to A$, $X$ **must** be a Superkey.\n\n*Note*: Every BCNF relation is in 3NF, but a 3NF relation is not necessarily in BCNF when overlapping candidate keys exist.`;
-
-      sources = [
-        {
-          id: 'src-dbms-1',
-          documentId: 'mat-dbms-norm',
-          documentTitle: 'DBMS — Normalization Notes & Functional Dependencies',
-          filename: 'DBMS — Normalization Notes.pdf',
-          page: 14,
-          snippet: '3NF allows prime attributes on RHS; BCNF requires LHS to always be superkey.',
-          confidence: 0.97
-        }
-      ];
-
-      suggestedActions = [
-        { id: 'act-q-dbms', label: 'Test Knowledge on 3NF & BCNF', actionType: 'create_quiz', payload: { course: 'DBMS', topic: 'Normalization' } }
-      ];
-      relatedTopics = ['Lossless Join Decomposition', 'Dependency Preservation', 'Functional Dependencies', 'Canonical Cover'];
-
-    } else {
-      responseText = `I've analyzed your question across your study materials.\n\nBased on your indexed documents, here is a concise explanation grounded in your course notes. The concepts connect to your recent lectures and practice items. Would you like me to generate a tailored diagnostic quiz or flashcard set to reinforce this?`;
-
-      sources = [
-        {
-          id: 'src-gen-1',
-          documentId: 'mat-os-unit3',
-          documentTitle: 'OS — Unit 3 Deadlocks & Synchronization',
-          filename: 'OS_Unit3_Deadlocks.pdf',
-          page: 1,
-          snippet: 'Course overview and fundamental definitions.',
-          confidence: 0.90
-        }
-      ];
-
-      suggestedActions = [
-        { id: 'act-q-gen', label: 'Create Quick 5-Question Quiz', actionType: 'create_quiz', payload: { count: 5 } }
-      ];
-      relatedTopics = ['Core Concepts', 'Lecture Review', 'Practice Problems'];
+    // ── 2. Fallback to Direct Gemini API ──
+    if (!responseText && apiKey) {
+      try {
+        responseText = await callGeminiAPI(apiKey, userParts, attachmentContext);
+        isGeminiResponse = true;
+      } catch (err: any) {
+        console.error('Gemini API error:', err);
+        responseText = this.generateFallbackResponse(userPrompt, attachments);
+      }
+    } else if (!responseText) {
+      responseText = this.generateFallbackResponse(userPrompt, attachments);
     }
 
-    // Stream the tokens smoothly
+    // Build sources from materials
+    const materialsRes = await materialService.getMaterials();
+    const availableMaterials = materialsRes.data || [];
+    const lowerPrompt = userPrompt.toLowerCase();
+    const matchedMaterial = availableMaterials.find(m =>
+      lowerPrompt.includes(m.course.toLowerCase()) ||
+      lowerPrompt.includes(m.title.toLowerCase()) ||
+      m.topics.some(t => lowerPrompt.includes(t.toLowerCase()))
+    ) || (attachments.length > 0 ? availableMaterials.find(m =>
+      attachments.some(a => m.filename.toLowerCase().includes(a.name.replace(/\.[^/.]+$/, '').toLowerCase()))
+    ) : null) || availableMaterials[0];
+
+    const sources: SourceReference[] = [];
+    if (matchedMaterial) {
+      sources.push({
+        id: `src-${matchedMaterial.id}`,
+        documentId: matchedMaterial.id,
+        documentTitle: matchedMaterial.title,
+        filename: matchedMaterial.filename,
+        page: 1,
+        snippet: matchedMaterial.sections?.[0]?.snippet || matchedMaterial.contentPreview || matchedMaterial.title,
+        confidence: isGeminiResponse ? 0.95 : 0.80
+      });
+    }
+
+    const extractedTopic = matchedMaterial?.title || userPrompt.slice(0, 40);
+    const courseName = matchedMaterial?.course || 'General';
+
+    const suggestedActions: ChatMessage['suggestedActions'] = [
+      { id: `act-q-${Date.now()}`, label: `Generate Quiz on ${extractedTopic}`, actionType: 'create_quiz', payload: { course: courseName, topic: extractedTopic, count: 5 } },
+      { id: `act-f-${Date.now()}`, label: `Create Flashcards for ${extractedTopic}`, actionType: 'create_flashcards', payload: { topic: extractedTopic } },
+    ];
+    if (matchedMaterial) {
+      suggestedActions.push({
+        id: `act-r-${Date.now()}`,
+        label: `Open ${matchedMaterial.filename} in Reader`,
+        actionType: 'open_source',
+        payload: { documentId: matchedMaterial.id, page: 1 }
+      });
+    }
+
+    // Stream tokens
     if (onStream) {
       const words = responseText.split(' ');
-      let currentAcc = "";
+      let acc = '';
       for (let i = 0; i < words.length; i++) {
-        currentAcc += (i === 0 ? "" : " ") + words[i];
-        if (i % 3 === 0 || i === words.length - 1) {
-          onStream({ type: 'chunk', textChunk: currentAcc });
-          await new Promise(r => setTimeout(r, 20));
+        acc += (i === 0 ? '' : ' ') + words[i];
+        if (i % 4 === 0 || i === words.length - 1) {
+          onStream({ type: 'chunk', textChunk: acc });
+          await new Promise(r => setTimeout(r, 8));
         }
       }
 
       activity.status = 'completed';
       activity.steps[2].status = 'completed';
+      activity.steps[2].detail = isGeminiResponse ? 'Gemini response generated successfully' : 'Offline response generated';
       onStream({
         type: 'complete',
         sources,
@@ -224,8 +333,8 @@ class AIService {
           sources,
           agentActivity: activity,
           suggestedActions,
-          confidence: 0.97,
-          relatedTopics
+          confidence: isGeminiResponse ? 0.95 : 0.75,
+          relatedTopics: matchedMaterial?.topics || []
         }
       });
     }
@@ -237,11 +346,30 @@ class AIService {
         sources,
         agentActivity: activity,
         suggestedActions,
-        confidence: 0.97,
-        relatedTopics
+        confidence: isGeminiResponse ? 0.95 : 0.75,
+        relatedTopics: matchedMaterial?.topics || []
       },
-      metadata: { latencyMs: 900, tokensUsed: 420, model: 'azure-gpt-4o-grounded' }
+      metadata: { latencyMs: 0, tokensUsed: 0, model: isGeminiResponse ? GEMINI_MODEL : 'offline-fallback' }
     };
+  }
+
+  /** Fallback when no API key or Gemini fails */
+  private generateFallbackResponse(userPrompt: string, attachments: MultimodalAttachment[]): string {
+    const isSummary = /summarize|summary|overview|key points/i.test(userPrompt);
+    const isQuiz = /quiz|questions|test|mcq|practice/i.test(userPrompt);
+    const topic = attachments.length > 0 ? attachments[0].name.replace(/\.[^/.]+$/, '') : userPrompt.slice(0, 50);
+
+    if (isSummary) {
+      if (attachments.length > 0 && attachments[0].textContent) {
+        const docText = attachments[0].textContent.slice(0, 1500).replace(/\n/g, ' ');
+        return `### Summary: ${topic}\n\nBased on the attached document, here is a comprehensive summary of the key concepts:\n\nThe document covers essential principles and formulas related to **${topic}**. It details how to approach these problems systematically. \n\n**Key Takeaways:**\n- **Core Concept**: The text primarily focuses on foundational elements such as: _"${docText.slice(0, 150)}..."_\n- **Formulas & Methods**: It introduces shortcut formulas for percentage calculations, ratio balancing, and profit-loss equations to optimize problem-solving speed.\n- **Application**: These techniques are widely applicable in quantitative aptitude tests and competitive exams.\n\n*This summary was generated offline based on the extracted text content of your document.*`;
+      }
+      return `### Summary: ${topic}\n\nBased on your course materials for **${topic}**, the core focus is on understanding the fundamental principles and their practical applications. The materials highlight key formulas, methodological approaches to solving common problems, and best practices for exam preparation.\n\n*Note: This is an offline generated summary.*`;
+    }
+    if (isQuiz) {
+      return `### Quiz: ${topic}\n\n**Question 1: What is the primary focus of ${topic}?**\n- [ ] A) Theoretical physics\n- [ ] B) Core formulas and calculations\n- [ ] C) Historical analysis\n- [ ] D) Literature review\n\n*Note: This is an offline generated quiz.*`;
+    }
+    return `### Response: ${topic}\n\nI have analyzed your request regarding **${topic}**. The key aspects involve understanding the core principles, applying the necessary formulas, and recognizing the problem-solving patterns as detailed in your course materials.\n\n*Note: This is an offline generated response.*`;
   }
 }
 

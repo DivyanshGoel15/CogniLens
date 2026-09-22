@@ -25,7 +25,7 @@ interface NavItem {
 }
 
 export const Sidebar: React.FC = () => {
-  const { currentRoute, setCurrentRoute, isSidebarCollapsed, setIsSidebarCollapsed } = useApp();
+  const { currentRoute, setCurrentRoute, isSidebarCollapsed, setIsSidebarCollapsed, userProfile, startNewStudySession } = useApp();
 
   const primaryNav: NavItem[] = [
     { route: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -195,7 +195,7 @@ export const Sidebar: React.FC = () => {
       {!isSidebarCollapsed && (
         <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border-sidebar)' }}>
           <button
-            onClick={() => setCurrentRoute('ai-tutor')}
+            onClick={startNewStudySession}
             className="btn btn-primary"
             style={{ width: '100%', padding: '9px 12px', fontSize: '0.8125rem' }}
           >
@@ -248,7 +248,7 @@ export const Sidebar: React.FC = () => {
               width: '28px',
               height: '28px',
               borderRadius: '50%',
-              backgroundColor: '#3b82f6',
+              backgroundColor: userProfile.avatarBgColor || '#3b82f6',
               color: '#ffffff',
               fontWeight: 700,
               fontSize: '0.75rem',
@@ -258,12 +258,16 @@ export const Sidebar: React.FC = () => {
               flexShrink: 0
             }}
           >
-            S
+            {userProfile.avatarInitials || userProfile.fullName.charAt(0).toUpperCase() || 'S'}
           </div>
           {!isSidebarCollapsed && (
             <div style={{ overflow: 'hidden' }}>
-              <div style={{ fontSize: '0.8125rem', color: '#ffffff', fontWeight: 600 }}>Student Member</div>
-              <div style={{ fontSize: '0.6875rem', color: 'var(--text-sidebar-muted)' }}>Computer Science • Year 3</div>
+              <div style={{ fontSize: '0.8125rem', color: '#ffffff', fontWeight: 600, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                {userProfile.fullName || 'Student Member'}
+              </div>
+              <div style={{ fontSize: '0.6875rem', color: 'var(--text-sidebar-muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                {userProfile.major} • {userProfile.academicYear}
+              </div>
             </div>
           )}
         </div>

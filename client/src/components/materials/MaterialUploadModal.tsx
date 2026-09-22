@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, X, FileText, CheckCircle2, AlertCircle, Loader2, BookOpen, Sparkles } from 'lucide-react';
 import { materialService } from '../../services/materialService';
+import { progressService } from '../../services/progressService';
 import { useApp } from '../../context/AppContext';
 import { useToast } from '../../context/ToastContext';
 import { MaterialSource } from '../../types/material';
@@ -48,19 +49,37 @@ export const MaterialUploadModal: React.FC<MaterialUploadModalProps> = ({ onClos
     setCurrentStage('Initializing ingestion pipeline...');
 
     try {
+      let textContent = '';
+      if (!selectedFile.type.startsWith('image/')) {
+        const reader = new FileReader();
+        textContent = await new Promise<string>((resolve) => {
+          reader.onload = () => resolve((reader.result as string).slice(0, 50000));
+          reader.onerror = () => resolve('');
+          reader.readAsText(selectedFile);
+        });
+      }
+
       const res = await materialService.uploadMaterial(
         selectedFile,
         selectedCourse,
         (progress, stage) => {
           setUploadProgress(progress);
           setCurrentStage(stage);
-        }
+        },
+        textContent
       );
 
       if (res.success) {
         setCompletedMaterial(res.data);
         await refreshMaterials();
-        showToast('Document Indexed', `${res.data.filename} is now ready for multimodal queries`, 'success');
+        await progressService.recordMaterialUpload(
+          res.data.id,
+          res.data.title,
+          res.data.filename,
+          selectedCourse,
+          res.data.pagesCount || 12
+        );
+        showToast('Document Indexed', `${res.data.filename} is now saved in Your Materials`, 'success');
       }
     } catch (err) {
       showToast('Ingestion Error', 'Failed to parse document embeddings', 'error');

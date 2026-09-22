@@ -4,7 +4,6 @@ import { AppProvider, useApp } from './context/AppContext';
 import { DemoProvider } from './context/DemoContext';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
-import { DemoBar } from './components/layout/DemoBar';
 
 import { DashboardScreen } from './screens/DashboardScreen';
 import { AITutorScreen } from './screens/AITutorScreen';
@@ -27,9 +26,6 @@ const MainContent: React.FC = () => {
 
       {/* Main Workspace Layout */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflow: 'hidden' }}>
-        {/* Interactive Judge / Teacher Demo Presets Bar */}
-        <DemoBar />
-
         {/* Global Workspace Header */}
         <Header />
 

@@ -1,4 +1,6 @@
 .env
+.env.*
+.env.local
 .venv/
 data/processed/
 __pycache__/
@@ -9,3 +11,5 @@ client/node_modules/
 dist/
 client/dist/
 .DS_Store
+*.zip
+CogniLens.zip

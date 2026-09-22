@@ -68,15 +68,55 @@ export const MultimodalComposer: React.FC<MultimodalComposerProps> = ({
 
     const file = files[0];
     const isImg = file.type.startsWith('image/');
-    const newAttachment: MultimodalAttachment = {
-      id: `att-${Date.now()}`,
-      name: file.name,
-      type: isImg ? 'image' : 'pdf',
-      size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`
-    };
 
-    setAttachments((prev) => [...prev, newAttachment]);
-    showToast('Attached File', `${file.name} ready for multimodal analysis`, 'info');
+    const reader = new FileReader();
+
+    if (isImg) {
+      // Read image as base64 for Gemini Vision
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(',')[1]; // strip data:...;base64, prefix
+        const newAttachment: MultimodalAttachment = {
+          id: `att-${Date.now()}`,
+          name: file.name,
+          type: 'image',
+          size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+          mimeType: file.type,
+          fileData: base64,
+        };
+        setAttachments((prev) => [...prev, newAttachment]);
+        showToast('Image Attached', `${file.name} will be analyzed by Gemini Vision`, 'success');
+      };
+      reader.readAsDataURL(file);
+    } else {
+      // Read document as text for LLM context
+      reader.onload = () => {
+        const textContent = reader.result as string;
+        const fileType = file.name.endsWith('.pdf') ? 'pdf' as const : 'doc' as const;
+        const newAttachment: MultimodalAttachment = {
+          id: `att-${Date.now()}`,
+          name: file.name,
+          type: fileType,
+          size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+          mimeType: file.type,
+          textContent: textContent.slice(0, 50000), // Cap at 50k chars to avoid token overflow
+        };
+        setAttachments((prev) => [...prev, newAttachment]);
+        showToast('Document Attached', `${file.name} content extracted for analysis`, 'success');
+      };
+      reader.onerror = () => {
+        // Fallback: attach without content
+        const newAttachment: MultimodalAttachment = {
+          id: `att-${Date.now()}`,
+          name: file.name,
+          type: file.name.endsWith('.pdf') ? 'pdf' : 'doc',
+          size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+        };
+        setAttachments((prev) => [...prev, newAttachment]);
+        showToast('File Attached', `${file.name} attached (content extraction failed)`, 'info');
+      };
+      reader.readAsText(file);
+    }
+
     e.target.value = '';
   };
 

@@ -35,6 +35,12 @@ export interface MultimodalAttachment {
   url?: string;
   size?: string;
   previewUrl?: string;
+  /** Base64-encoded file data for images sent to Gemini Vision */
+  fileData?: string;
+  /** MIME type of the file data */
+  mimeType?: string;
+  /** Extracted text content from PDFs/docs for LLM context */
+  textContent?: string;
 }
 
 export interface ChatMessage {

@@ -148,7 +148,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onExecuteActi
             </span>
             {!isUser && (
               <span className="badge badge-primary" style={{ fontSize: '0.65rem', padding: '1px 6px' }}>
-                Grounded Azure AI
+                Grounded Multimodal Agent
               </span>
             )}
           </div>
