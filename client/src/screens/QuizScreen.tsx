@@ -95,12 +95,44 @@ export const QuizScreen: React.FC = () => {
     }
   };
 
+  const inferCourseFromTopic = (topic: string): string => {
+    const t = topic.toLowerCase();
+    const matchedMaterial = materials.find(m =>
+      m.title.toLowerCase().includes(t) ||
+      m.course.toLowerCase().includes(t) ||
+      m.topics.some(tp => tp.toLowerCase().includes(t))
+    );
+    if (matchedMaterial) return matchedMaterial.course;
+
+    if (t.includes('java') || t.includes('c++') || t.includes('python') || t.includes('operator') || t.includes('oop') || t.includes('programming') || t.includes('variable') || t.includes('function') || t.includes('loop')) {
+      return 'Java & Programming';
+    }
+    if (t.includes('deadlock') || t.includes('schedul') || t.includes('process') || t.includes('thread') || t.includes('paging') || t.includes('kernel') || t.includes('semaphore') || t.includes('mutex')) {
+      return 'Operating Systems';
+    }
+    if (t.includes('regression') || t.includes('neural') || t.includes('gradient') || t.includes('machine learning') || t.includes('deep learn') || t.includes('ai') || t.includes('loss')) {
+      return 'Machine Learning';
+    }
+    if (t.includes('dbms') || t.includes('sql') || t.includes('normalization') || t.includes('database') || t.includes('3nf') || t.includes('bcnf') || t.includes('table')) {
+      return 'Database Management Systems';
+    }
+    if (t.includes('network') || t.includes('tcp') || t.includes('ip') || t.includes('osi') || t.includes('protocol') || t.includes('http') || t.includes('dns') || t.includes('udp')) {
+      return 'Computer Networks';
+    }
+    if (t.includes('data structure') || t.includes('tree') || t.includes('graph') || t.includes('stack') || t.includes('queue') || t.includes('array') || t.includes('sorting') || t.includes('algorithm')) {
+      return 'Data Structures & Algorithms';
+    }
+    return topic.trim();
+  };
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!quizSearchTopic.trim()) return;
+    const query = quizSearchTopic.trim();
+    if (!query) return;
+    const course = inferCourseFromTopic(query);
     handleStartQuiz({
-      course: 'Operating Systems',
-      topic: quizSearchTopic,
+      course,
+      topic: query,
       questionCount: 5,
       difficulty: 'intermediate',
       questionType: 'all'

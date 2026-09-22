@@ -437,6 +437,256 @@ const TOPIC_QUESTION_BANK: Record<string, BankQuestion[]> = {
       sourceDoc: 'OS_Deadlock_Recovery.pdf',
       sourcePage: 49
     }
+  ],
+
+  // 5. Java Operators & Core Expressions
+  'java_operators': [
+    {
+      topic: 'Operator Precedence & Evaluation',
+      course: 'Java & Programming',
+      questionText: 'In Java, what is the exact output of evaluating the expression: int a = 5; int b = a++ + ++a; ?',
+      correctAnswer: '12 (a++ evaluates to 5 with a becoming 6, then ++a increments a to 7 and evaluates to 7; 5 + 7 = 12)',
+      distractors: [
+        '11 (a++ evaluates to 5, ++a evaluates to 6; 5 + 6 = 11)',
+        '13 (both increments evaluate to 6; 6 + 6 + 1 = 13)',
+        '10 (post-increment is deferred until after assignment completes)'
+      ],
+      explanation: 'Java expressions are evaluated left-to-right: a++ yields 5 (and mutates a to 6). Next, ++a increments a to 7 and yields 7. 5 + 7 = 12, leaving a with value 7.',
+      sourceDoc: 'Java_Operators_Spec.pdf',
+      sourcePage: 14
+    },
+    {
+      topic: 'Short-Circuit vs Bitwise Logical Operators',
+      course: 'Java & Programming',
+      questionText: 'What is the critical semantic difference between the short-circuit logical operator && and the bitwise logical operator & in Java?',
+      correctAnswer: '&& skips evaluation of the right operand if the left operand is false; & unconditionally evaluates both operands',
+      distractors: [
+        '&& can only be used with primitive booleans, whereas & can only be used with Boolean object wrappers',
+        '& has higher performance because it is directly compiled into hardware branch instructions',
+        '&& evaluates operands right-to-left while & evaluates left-to-right'
+      ],
+      explanation: 'Short-circuit evaluation in && avoids NullPointerException in guards like (obj != null && obj.isValid()) because the right operand is bypassed if the left is false.',
+      sourceDoc: 'Java_Logical_Operators.pdf',
+      sourcePage: 22
+    },
+    {
+      topic: 'Modulo Operator with Negative Numbers',
+      course: 'Java & Programming',
+      questionText: 'In Java, what is the evaluated result of the integer expression (-7 % 3)?',
+      correctAnswer: '-1 (In Java, the sign of the modulo remainder is strictly determined by the sign of the dividend/numerator)',
+      distractors: [
+        '2 (Java adopts Euclidean modulo where remainder is strictly non-negative)',
+        '1 (The remainder calculation takes the absolute values of both operands)',
+        'Throws an ArithmeticException: Negative Remainder'
+      ],
+      explanation: 'Under JLS §15.17.3, integer division and remainder satisfy (a / b) * b + (a % b) = a. Since -7 / 3 = -2, we have (-2)*3 + (-1) = -7, yielding -1.',
+      sourceDoc: 'Java_Arithmetic_Spec.pdf',
+      sourcePage: 9
+    },
+    {
+      topic: 'Shift Operators: >> vs >>>',
+      course: 'Java & Programming',
+      questionText: 'What is the functional difference between the arithmetic right shift >> and the logical right shift >>> in Java?',
+      correctAnswer: '>> performs sign extension by preserving the sign bit; >>> shifts in zeros unconditionally regardless of sign',
+      distractors: [
+        '>>> can only be applied to floating-point float and double numbers',
+        '>> rotates bits circularly while >>> truncates bits',
+        '>>> throws an exception if the shift count is negative'
+      ],
+      explanation: 'For negative integers, >> shifts in 1s to preserve negative polarity, whereas >>> (unsigned right shift) fills the leftmost vacated bits with 0s.',
+      sourceDoc: 'Java_Bitwise_Spec.pdf',
+      sourcePage: 31
+    },
+    {
+      topic: 'Compound Assignment Operator Implicit Cast',
+      course: 'Java & Programming',
+      questionText: 'Given "short s = 10;", why does "s += 5;" compile cleanly while "s = s + 5;" produces a compilation error in Java?',
+      correctAnswer: 'Compound assignment (+=) automatically applies an implicit cast (short)(s + 5), whereas s + 5 promotes s to int and requires an explicit cast',
+      distractors: [
+        's += 5 allocates memory directly on the JVM operand stack',
+        's = s + 5 requires s to be marked with the volatile keyword',
+        '+= is evaluated at compile time as a constant expression'
+      ],
+      explanation: 'According to JLS §15.26.2, E1 op= E2 is syntactically equivalent to E1 = (T)((E1) op (E2)). Binary addition s + 5 promotes s to int, which cannot be assigned to short without casting.',
+      sourceDoc: 'Java_Type_Promotion.pdf',
+      sourcePage: 18
+    },
+    {
+      topic: 'Ternary Conditional Numeric Promotion',
+      course: 'Java & Programming',
+      questionText: 'What is the return type of the ternary expression: true ? Integer.valueOf(1) : Double.valueOf(2.0) ?',
+      correctAnswer: 'Double (Binary numeric promotion unboxes and promotes both branches to double, boxing back to Double if needed)',
+      distractors: [
+        'Integer (because the condition evaluates to true, taking the first branch)',
+        'Object (the most specific common ancestor in the class hierarchy)',
+        'Number (the direct superclass of Integer and Double)'
+      ],
+      explanation: 'When one branch of a ternary conditional is an integer type and the other is a floating-point type, JLS numeric promotion promotes the whole expression to double/Double.',
+      sourceDoc: 'Java_Ternary_Promotion.pdf',
+      sourcePage: 25
+    },
+    {
+      topic: 'instanceof Operator with Null',
+      course: 'Java & Programming',
+      questionText: 'What is the evaluation result of the expression "null instanceof String" in Java?',
+      correctAnswer: 'false (instanceof returns false without throwing any NullPointerException if the operand is null)',
+      distractors: [
+        'Throws a NullPointerException at runtime',
+        'true (because null is assignable to any reference type)',
+        'Compile-time error: invalid operand type null'
+      ],
+      explanation: 'JLS §15.20.2 specifies that if the relational value of the left operand is null, the result of the instanceof operator is always false without exception.',
+      sourceDoc: 'Java_Instanceof_Rules.pdf',
+      sourcePage: 40
+    },
+    {
+      topic: 'String Concatenation vs Arithmetic Addition',
+      course: 'Java & Programming',
+      questionText: 'What is printed by: System.out.println(10 + 20 + "CogniLens" + 10 + 20); ?',
+      correctAnswer: '"30CogniLens1020" (Left-to-right evaluation performs arithmetic addition before the string, and string concatenation thereafter)',
+      distractors: [
+        '"30CogniLens30"',
+        '"1020CogniLens1020"',
+        '"1020CogniLens30"'
+      ],
+      explanation: 'Evaluation occurs strictly left-to-right: 10 + 20 = 30, then 30 + "CogniLens" = "30CogniLens", then "30CogniLens" + 10 = "30CogniLens10", then + 20 = "30CogniLens1020".',
+      sourceDoc: 'Java_String_Operators.pdf',
+      sourcePage: 12
+    },
+    {
+      topic: 'Bitwise Inversion Operator ~',
+      course: 'Java & Programming',
+      questionText: 'In Java, what is the exact value of the expression (~5)?',
+      correctAnswer: '-6 (Bitwise NOT inverts all bits in two\'s complement, satisfying ~x = -(x + 1))',
+      distractors: [
+        '-5',
+        '5',
+        '-4'
+      ],
+      explanation: 'In two\'s complement representation, inverting all bits of a positive integer x mathematically produces -(x + 1). For x = 5, ~5 = -(5 + 1) = -6.',
+      sourceDoc: 'Java_Bitwise_Not.pdf',
+      sourcePage: 28
+    },
+    {
+      topic: 'Equality Operator == vs .equals()',
+      course: 'Java & Programming',
+      questionText: 'Why does "new String("test") == new String("test")" evaluate to false in Java?',
+      correctAnswer: 'The == operator compares heap object memory addresses (reference identity), not character sequence equivalence',
+      distractors: [
+        'The JVM string pool automatically removes duplicate string literals',
+        'The == operator only compares string character lengths',
+        'The new keyword assigns random memory offsets that fail byte parity checks'
+      ],
+      explanation: 'The == operator checks whether both reference variables point to the exact same object in heap memory. To compare character contents, the .equals() method must be called.',
+      sourceDoc: 'Java_Equality_Semantics.pdf',
+      sourcePage: 16
+    },
+    {
+      topic: 'Logical Operator Precedence',
+      course: 'Java & Programming',
+      questionText: 'In boolean logic expressions in Java, what is the relative precedence order between !, &&, and || ?',
+      correctAnswer: '! (highest) -> && (intermediate) -> || (lowest)',
+      distractors: [
+        '|| (highest) -> && (intermediate) -> ! (lowest)',
+        '&& and || have equal precedence and evaluate purely left-to-right',
+        '! and && have equal precedence, followed by ||'
+      ],
+      explanation: 'Logical NOT (!) is a unary operator with high precedence, followed by logical AND (&&), and finally logical OR (||). Therefore, a || b && c is parsed as a || (b && c).',
+      sourceDoc: 'Java_Operator_Precedence_Table.pdf',
+      sourcePage: 8
+    },
+    {
+      topic: 'Short-Circuit Evaluation with Exceptions',
+      course: 'Java & Programming',
+      questionText: 'What is the outcome of evaluating the expression: true || (5 / 0 == 0) in Java?',
+      correctAnswer: 'true (The left operand satisfies the || operator, so the division by zero is never executed)',
+      distractors: [
+        'Throws an ArithmeticException: / by zero at runtime',
+        'Compile-time error: constant division by zero detected',
+        'false'
+      ],
+      explanation: 'Because the left operand of || is true, short-circuit semantics prevent the right operand (5 / 0 == 0) from being evaluated, completely avoiding an ArithmeticException.',
+      sourceDoc: 'Java_ShortCircuit_Evaluation.pdf',
+      sourcePage: 19
+    }
+  ],
+
+  // 6. Database Management Systems & Relational Normalization
+  'dbms': [
+    {
+      topic: 'Third Normal Form (3NF) vs BCNF',
+      course: 'Database Management Systems',
+      questionText: 'When is a relational schema in Third Normal Form (3NF) but NOT in Boyce-Codd Normal Form (BCNF)?',
+      correctAnswer: 'When a functional dependency X -> A exists where X is not a superkey, but A is a prime attribute (part of a candidate key)',
+      distractors: [
+        'When transitive dependencies exist between non-prime attributes',
+        'When multi-valued dependencies violate fourth normal form constraints',
+        'When composite primary keys contain null values'
+      ],
+      explanation: '3NF permits dependencies where the determinant X is not a superkey provided that A is prime. BCNF strictly requires every determinant X to be a superkey.',
+      sourceDoc: 'DBMS_Normalization_Theory.pdf',
+      sourcePage: 34
+    },
+    {
+      topic: 'ACID Transaction Isolation Levels',
+      course: 'Database Management Systems',
+      questionText: 'Which transaction phenomenon is prevented by "Repeatable Read" isolation but permitted under "Read Committed" in SQL standards?',
+      correctAnswer: 'Non-repeatable (Fuzzy) Read',
+      distractors: [
+        'Dirty Read',
+        'Phantom Read',
+        'Lost Update'
+      ],
+      explanation: 'Read Committed permits non-repeatable reads (re-reading a modified row within the same transaction yields different data). Repeatable Read locks the rows to ensure consistency.',
+      sourceDoc: 'DBMS_ACID_Transactions.pdf',
+      sourcePage: 45
+    },
+    {
+      topic: 'B+ Tree Indexing Properties',
+      course: 'Database Management Systems',
+      questionText: 'Why do relational database management engines predominantly use B+ Trees instead of standard B-Trees for disk-backed indexing?',
+      correctAnswer: 'B+ Trees store all records/pointers exclusively in leaf nodes and link them sequentially, drastically accelerating range scans',
+      distractors: [
+        'B+ Trees require strictly zero disk I/O operations during node insertion',
+        'Standard B-Trees cannot store duplicate key values under any circumstances',
+        'B+ Trees eliminate the need for write-ahead logging (WAL)'
+      ],
+      explanation: 'Because internal nodes in a B+ tree store only routing keys, fan-out is maximized. Sequentially linked leaves allow O(log n) entry followed by linear sequential range scans.',
+      sourceDoc: 'DBMS_Index_Storage.pdf',
+      sourcePage: 52
+    }
+  ],
+
+  // 7. Computer Networks
+  'computer_networks': [
+    {
+      topic: 'TCP 3-Way Handshake',
+      course: 'Computer Networks',
+      questionText: 'During a standard TCP 3-way handshake, what packet flags and sequence updates are exchanged to establish a reliable connection?',
+      correctAnswer: 'Client sends SYN (seq=x); Server responds with SYN-ACK (seq=y, ack=x+1); Client sends ACK (ack=y+1)',
+      distractors: [
+        'Client sends SYN; Server responds with ACK; Server sends FIN',
+        'Client sends DATA; Server responds with ACK; Client sends CLOSE',
+        'Client sends PSH-ACK; Server responds with RST-ACK; Client sends FIN'
+      ],
+      explanation: 'The TCP handshake synchronizes sequence numbers in both directions: SYN establishes client sequence, SYN-ACK acknowledges client sequence and proposes server sequence, and ACK finalizes.',
+      sourceDoc: 'Networks_Transport_Layer.pdf',
+      sourcePage: 28
+    },
+    {
+      topic: 'TCP vs UDP Transport Semantics',
+      course: 'Computer Networks',
+      questionText: 'Why is UDP preferred over TCP for real-time multiplayer gaming and live audio streaming?',
+      correctAnswer: 'UDP eliminates head-of-line blocking and retransmission latency by sacrificing guaranteed packet delivery',
+      distractors: [
+        'UDP provides built-in cryptographic encryption of payloads at the socket layer',
+        'UDP packets are prioritized by hardware ISP routers over TCP streams',
+        'UDP supports larger packet sizes exceeding the physical MTU without fragmentation'
+      ],
+      explanation: 'In live audio and gaming, stale retransmitted packets are useless. UDP provides low-overhead, connectionless datagram transport without retransmissions.',
+      sourceDoc: 'Networks_UDP_Protocols.pdf',
+      sourcePage: 17
+    }
   ]
 };
 
@@ -446,15 +696,31 @@ const TOPIC_QUESTION_BANK: Record<string, BankQuestion[]> = {
 function resolveTopicBucket(topic: string, course?: string): string {
   const t = (topic + ' ' + (course || '')).toLowerCase();
 
+  // Java & Programming Operators
+  if (t.includes('operator') || t.includes('bitwise') || t.includes('precedence') || t.includes('ternary') || t.includes('increment') || (t.includes('java') && !t.includes('oop'))) {
+    return 'java_operators';
+  }
+  // DBMS & SQL
+  if (t.includes('dbms') || t.includes('sql') || t.includes('normaliz') || t.includes('3nf') || t.includes('bcnf') || t.includes('acid') || t.includes('relational') || t.includes('database')) {
+    return 'dbms';
+  }
+  // Computer Networks
+  if (t.includes('network') || t.includes('tcp') || t.includes('udp') || t.includes('osi') || t.includes('handshake') || t.includes('dns') || t.includes('http') || t.includes('protocol')) {
+    return 'computer_networks';
+  }
+  // CPU Scheduling
   if (t.includes('round robin') || t.includes('schedul') || t.includes('gantt') || t.includes('cpu ')) {
     return 'cpu_scheduling';
   }
+  // Neural Networks
   if (t.includes('neural') || t.includes('perceptron') || t.includes('backprop') || t.includes('mlp') || t.includes('deep learn')) {
     return 'neural_network';
   }
+  // Gradient Descent & Optimization
   if (t.includes('gradient') || t.includes('contour') || t.includes('descent') || t.includes('optim')) {
     return 'gradient_descent';
   }
+  // Deadlocks & Concurrency
   if (t.includes('deadlock') || t.includes('coffman') || t.includes('banker') || t.includes('semaphore') || t.includes('mutex') || t.includes('concurr')) {
     return 'deadlock';
   }
@@ -511,7 +777,7 @@ Strictly return a JSON object with this schema:
   ]
 }`;
 
-  const models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp'];
+  const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.5-flash'];
 
   for (const model of models) {
     try {
@@ -534,7 +800,13 @@ Strictly return a JSON object with this schema:
       const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!rawText) continue;
 
-      const parsed = JSON.parse(rawText);
+      // Clean potential markdown code fences from JSON output
+      let cleanJson = rawText.trim();
+      if (cleanJson.startsWith('```')) {
+        cleanJson = cleanJson.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+      }
+
+      const parsed = JSON.parse(cleanJson);
       if (parsed && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
         const historySet = servedQuestionHistory.get(topicKey) || new Set<string>();
 
@@ -553,7 +825,7 @@ Strictly return a JSON object with this schema:
 
           return {
             id: `q-gemini-${Date.now()}-${idx}`,
-            course: config.course || 'Computer Science',
+            course: config.course || q.course || 'Academic Course',
             topic: q.topic || topicName,
             type: 'mcq',
             questionText: qText,
@@ -632,27 +904,27 @@ function synthesizeFallbackQuiz(config: QuizConfig): QuizQuestion[] {
   // Uses authentic domain stems with dynamic options so patterns vary every session
   const dynamicStems = [
     {
-      q: `What is the primary architectural invariant or governing principle behind "${topicName}"?`,
+      q: `What is the primary foundational invariant or governing principle behind "${topicName}"?`,
       correct: `It enforces strict boundary constraints and deterministic state transitions across execution cycles`,
       distractors: [
-        `It eliminates all memory allocation overhead by disabling dynamic pointers`,
-        `It bypasses hardware kernel protection modes to accelerate throughput`,
-        `It replaces multivariable equations with randomized probabilistic approximations`
+        `It eliminates internal state verification by disabling dynamic constraints`,
+        `It replaces multivariable specifications with arbitrary unverified heuristics`,
+        `It bypasses underlying platform protection barriers to execute unmonitored commands`
       ],
       explanation: `Foundational design in "${topicName}" guarantees consistent invariant preservation under concurrent or bounded inputs.`
     },
     {
       q: `When evaluating the performance of "${topicName}", which trade-off is most critical to optimize?`,
-      correct: `Balancing execution latency and computational complexity against memory buffer overhead`,
+      correct: `Balancing execution latency and computational complexity against resource overhead`,
       distractors: [
-        `Minimizing CPU clock frequency while maximizing network packet drop rates`,
+        `Minimizing system throughput while maximizing arbitrary network payload sizes`,
         `Ensuring that all functions execute in strictly O(1) space regardless of input dimension`,
         `Prioritizing static compile-time assertions over runtime safety guarantees`
       ],
       explanation: `System designs involving "${topicName}" balance algorithmic throughput against memory space and latency constraints.`
     },
     {
-      q: `In an exam or production scenario involving "${topicName}", what is the most common pitfall or edge-case failure?`,
+      q: `In an academic or production scenario involving "${topicName}", what is the most common edge-case failure mode?`,
       correct: `Failing to handle boundary conditions, unmapped states, or race conditions during rapid state transitions`,
       distractors: [
         `Configuring too many read-only cache lines in the secondary memory buffer`,
@@ -672,12 +944,12 @@ function synthesizeFallbackQuiz(config: QuizConfig): QuizQuestion[] {
       explanation: `Robust implementations of "${topicName}" employ structural safeguards and invariant assertions to prevent worst-case degradation.`
     },
     {
-      q: `Which analytical method is standard for verifying the mathematical correctness and efficiency of "${topicName}"?`,
+      q: `Which analytical method is standard for verifying the formal correctness and efficiency of "${topicName}"?`,
       correct: `Step-by-step state tracing, loop invariant induction, and asymptotic complexity analysis`,
       distractors: [
         `Executing arbitrary benchmark tests without formal precondition verification`,
-        `Measuring CPU temperature during peak execution load`,
-        `Counting total lines of source code in the implementation repository`
+        `Performing random stress tests without formal invariant preconditions`,
+        `Evaluating total codebase volume without verifying functional invariants`
       ],
       explanation: `Formal verification of "${topicName}" relies on invariant proofs and algorithmic asymptotic bounds.`
     },
@@ -686,8 +958,8 @@ function synthesizeFallbackQuiz(config: QuizConfig): QuizQuestion[] {
       correct: `Logarithmic O(log n) or linear amortized O(n) bounds to guarantee scalability across large workloads`,
       distractors: [
         `Strictly exponential O(2ⁿ) execution time in all typical instances`,
-        `O(n!) factorial complexity for sorting and search procedures`,
-        `Zero CPU operations by evaluating calculations prior to execution`
+        `O(n!) factorial complexity for standard lookup and search procedures`,
+        `Zero computational operations by pre-computing all infinite possibilities`
       ],
       explanation: `Production implementations of "${topicName}" require efficient polynomial or logarithmic scalability.`
     },
@@ -695,9 +967,9 @@ function synthesizeFallbackQuiz(config: QuizConfig): QuizQuestion[] {
       q: `If an unexpected exception occurs during the execution lifecycle of "${topicName}", what is the recommended recovery procedure?`,
       correct: `Roll back state modifications to the most recent checkpoint and notify calling layers gracefully`,
       distractors: [
-        `Ignore error codes and proceed with corrupted memory buffers`,
-        `Crash the operating system kernel immediately without releasing locks`,
-        `Overwrite disk logs with random bit patterns`
+        `Ignore error codes and proceed with corrupted state buffers`,
+        `Terminating thread execution immediately without releasing acquired synchronization locks`,
+        `Bypassing persistent write-ahead logs during in-flight transactions`
       ],
       explanation: `Resilient systems maintain idempotency and rollback capabilities to preserve consistency upon fault.`
     }

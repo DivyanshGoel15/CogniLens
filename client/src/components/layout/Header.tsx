@@ -76,9 +76,34 @@ export const Header: React.FC = () => {
   };
 
   const handleLaunchQuiz = () => {
+    const q = searchQuery.trim();
+    const qLower = q.toLowerCase();
+    const matchedMaterial = materials.find(m =>
+      m.title.toLowerCase().includes(qLower) ||
+      m.course.toLowerCase().includes(qLower) ||
+      m.topics.some(t => t.toLowerCase().includes(qLower))
+    );
+
+    let course = matchedMaterial ? matchedMaterial.course : '';
+    if (!course) {
+      if (qLower.includes('java') || qLower.includes('c++') || qLower.includes('python') || qLower.includes('operator') || qLower.includes('oop') || qLower.includes('programming')) {
+        course = 'Java & Programming';
+      } else if (qLower.includes('deadlock') || qLower.includes('schedul') || qLower.includes('process') || qLower.includes('paging') || qLower.includes('kernel')) {
+        course = 'Operating Systems';
+      } else if (qLower.includes('regression') || qLower.includes('neural') || qLower.includes('gradient') || qLower.includes('machine learning')) {
+        course = 'Machine Learning';
+      } else if (qLower.includes('sql') || qLower.includes('database') || qLower.includes('dbms') || qLower.includes('normalization')) {
+        course = 'Database Management Systems';
+      } else if (qLower.includes('network') || qLower.includes('tcp') || qLower.includes('ip') || qLower.includes('protocol')) {
+        course = 'Computer Networks';
+      } else {
+        course = q || 'Academic Course';
+      }
+    }
+
     startQuiz({
-      course: 'Operating Systems',
-      topic: searchQuery,
+      course,
+      topic: q,
       questionCount: 5,
       difficulty: 'intermediate',
       questionType: 'all'
