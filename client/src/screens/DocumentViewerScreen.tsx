@@ -474,11 +474,13 @@ export const DocumentViewerScreen: React.FC = () => {
             padding: '0 20px',
             position: 'sticky',
             top: 0,
-            zIndex: 10
+            zIndex: 10,
+            gap: '16px',
+            flexWrap: 'nowrap'
           }}
         >
           {/* Material Switcher Dropdown */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
             <BookOpen size={16} color="var(--accent-primary)" />
             <select
               value={activeMaterial.id}
@@ -490,7 +492,7 @@ export const DocumentViewerScreen: React.FC = () => {
                 }
               }}
               className="input-text"
-              style={{ padding: '4px 8px', fontSize: '0.8125rem', fontWeight: 600, maxWidth: '240px' }}
+              style={{ padding: '4px 8px', fontSize: '0.8125rem', fontWeight: 600, maxWidth: '210px' }}
             >
               {materials.map(m => (
                 <option key={m.id} value={m.id}>
@@ -501,22 +503,33 @@ export const DocumentViewerScreen: React.FC = () => {
           </div>
 
           {/* Page Selector Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
             <button
               onClick={() => changePage(Math.max(1, activePage - 1))}
               disabled={activePage === 1}
               className="btn btn-ghost btn-sm"
+              style={{ padding: '4px 6px', borderRadius: '6px' }}
               aria-label="Previous page"
             >
               <ChevronLeft size={16} />
             </button>
-            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+            <span
+              style={{
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+                whiteSpace: 'nowrap',
+                display: 'inline-block',
+                lineHeight: 1
+              }}
+            >
               Page {activePage} of {totalPages}
             </span>
             <button
               onClick={() => changePage(Math.min(totalPages, activePage + 1))}
               disabled={activePage === totalPages}
               className="btn btn-ghost btn-sm"
+              style={{ padding: '4px 6px', borderRadius: '6px' }}
               aria-label="Next page"
             >
               <ChevronRight size={16} />

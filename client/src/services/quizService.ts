@@ -13,6 +13,9 @@ function shuffleArray<T>(array: T[]): T[] {
   return arr;
 }
 
+// In-memory session tracking of served questions per topic to strictly avoid repetition
+const servedQuestionHistory: Map<string, Set<string>> = new Map();
+
 // ---------------------------------------------------------------------------
 // Extensive Academic Question Bank categorized by Specific Topic
 // ---------------------------------------------------------------------------
@@ -99,6 +102,62 @@ const TOPIC_QUESTION_BANK: Record<string, BankQuestion[]> = {
       explanation: 'Round Robin guarantees bounded waiting time: no process waits more than (n-1)q time units for a CPU slice, ensuring interactive UI responsiveness.',
       sourceDoc: 'OS_Scheduling_Tradeoffs.pdf',
       sourcePage: 22
+    },
+    {
+      topic: 'Multi-Level Feedback Queues',
+      course: 'Operating Systems',
+      questionText: 'How do Multi-Level Feedback Queue (MLFQ) schedulers adjust process priority over time?',
+      correctAnswer: 'Processes that consume their full time quantum are demoted to lower-priority queues with larger quantums',
+      distractors: [
+        'Processes that execute I/O are permanently evicted to disk swap space',
+        'All processes are promoted to the highest queue every 10 milliseconds',
+        'Priorities are statically assigned at compilation time and cannot change'
+      ],
+      explanation: 'MLFQ penalizes CPU-bound jobs by demoting them to lower priority queues, while keeping interactive I/O-bound jobs in high-priority queues for rapid responsiveness.',
+      sourceDoc: 'OS_MLFQ.pdf',
+      sourcePage: 27
+    },
+    {
+      topic: 'Shortest Remaining Time First (SRTF)',
+      course: 'Operating Systems',
+      questionText: 'What differentiates Shortest Remaining Time First (SRTF) from standard Shortest Job First (SJF)?',
+      correctAnswer: 'SRTF is preemptive: if a new process arrives with a shorter remaining burst than the running process, the CPU is preempted',
+      distractors: [
+        'SRTF uses dynamic time quantum slicing like Round Robin',
+        'SRTF eliminates starvation for long CPU-bound processes',
+        'SRTF requires no prior knowledge of process burst times'
+      ],
+      explanation: 'SRTF is the preemptive variant of SJF. When a newly arrived job has a remaining burst less than the current job, the kernel switches to the new job immediately.',
+      sourceDoc: 'OS_SRTF.pdf',
+      sourcePage: 30
+    },
+    {
+      topic: 'Average Waiting Time Formula',
+      course: 'Operating Systems',
+      questionText: 'For 3 processes with Arrival Time = 0 and Bursts P1=10ms, P2=5ms, P3=2ms under non-preemptive SJF, what is the Average Waiting Time?',
+      correctAnswer: '3.0ms (P3 waits 0ms, P2 waits 2ms, P1 waits 7ms; (0+2+7)/3 = 3.0ms)',
+      distractors: [
+        '5.67ms (based on FCFS execution order P1, P2, P3)',
+        '2.33ms (based on shortest completion order)',
+        '4.5ms (midpoint between shortest and longest bursts)'
+      ],
+      explanation: 'Under SJF, execution sequence is P3 (0..2ms), P2 (2..7ms), P1 (7..17ms). Waiting times: P3=0ms, P2=2ms, P1=7ms. Average = (0 + 2 + 7) / 3 = 3.0ms.',
+      sourceDoc: 'OS_SJF_Calculations.pdf',
+      sourcePage: 34
+    },
+    {
+      topic: 'Convoy Effect in FCFS',
+      course: 'Operating Systems',
+      questionText: 'What is the primary cause of the Convoy Effect in CPU scheduling?',
+      correctAnswer: 'A long CPU-bound process holds the CPU while numerous short I/O-bound processes sit idle in the ready queue',
+      distractors: [
+        'Too many processes requesting disk I/O simultaneously causing head thrashing',
+        'High timer interrupt frequencies preempting processes prematurely',
+        'Recursive fork() system calls exhausting kernel process table entries'
+      ],
+      explanation: 'In FCFS, when a long CPU-bound process executes, all short I/O processes finish their I/O and wait in the ready queue, leaving I/O devices idle and inflating waiting times.',
+      sourceDoc: 'OS_Convoy_Effect.pdf',
+      sourcePage: 16
     }
   ],
 
@@ -161,18 +220,46 @@ const TOPIC_QUESTION_BANK: Record<string, BankQuestion[]> = {
       sourcePage: 40
     },
     {
-      topic: 'Universal Approximation Theorem',
+      topic: 'Softmax & Cross-Entropy Loss',
       course: 'Machine Learning',
-      questionText: 'What fundamental guarantee does the Universal Approximation Theorem provide for Multilayer Perceptrons?',
-      correctAnswer: 'A feedforward network with a single hidden layer and non-linear activation can approximate any continuous function on compact subsets of ℝⁿ to arbitrary precision',
+      questionText: 'When pairing a Softmax output layer with Categorical Cross-Entropy Loss L = -∑ y_k log(ŷ_k), what is the simplified partial derivative ∂L/∂z_i?',
+      correctAnswer: '∂L/∂z_i = ŷ_i - y_i (predicted probability minus one-hot ground truth)',
       distractors: [
-        'Gradient descent is guaranteed to find the global minimum in polynomial time',
-        'Any neural network can be trained without overfitting if regularization is used',
-        'Linear activation functions can model arbitrary non-linear surfaces if layers ≥ 3'
+        '∂L/∂z_i = ŷ_i (1 - ŷ_i) · y_i',
+        '∂L/∂z_i = log(ŷ_i) / (1 + e^{-z_i})',
+        '∂L/∂z_i = 2 (ŷ_i - y_i) · z_i'
       ],
-      explanation: 'Proved by Cybenko (1989) and Hornik (1991), non-linear hidden activations enable arbitrary continuous function approximation given sufficient hidden units.',
-      sourceDoc: 'ML_Foundations.pdf',
-      sourcePage: 45
+      explanation: 'The analytical combination of Softmax and Cross-Entropy yields the elegant gradient (ŷ_i - y_i), leading to numerical stability and fast convergence.',
+      sourceDoc: 'Classification_Gradients.pdf',
+      sourcePage: 42
+    },
+    {
+      topic: 'Dropout Regularization',
+      course: 'Machine Learning',
+      questionText: 'How does Inverted Dropout operate during training and inference in a deep neural network?',
+      correctAnswer: 'During training, activations are zeroed with probability p and scaled by 1/(1-p); during inference, no scaling or dropout is applied',
+      distractors: [
+        'During inference, weights are randomly set to zero with probability p',
+        'Dropout permanently deletes redundant hidden neurons from the network topology',
+        'Dropout is applied only to the input feature layer during backpropagation'
+      ],
+      explanation: 'Inverted dropout pre-scales activations by 1/(1-p) during training so the expected output value is preserved, requiring zero modification during evaluation/inference.',
+      sourceDoc: 'Regularization_Techniques.pdf',
+      sourcePage: 48
+    },
+    {
+      topic: 'Batch Normalization Invariant',
+      course: 'Machine Learning',
+      questionText: 'What is the primary function of Batch Normalization in deep feedforward networks?',
+      correctAnswer: 'It normalizes layer inputs across each mini-batch to zero mean and unit variance, mitigating internal covariate shift',
+      distractors: [
+        'It shrinks all weight parameters to zero to replace L2 regularization',
+        'It eliminates the need for non-linear activation functions in hidden layers',
+        'It converts stochastic gradient descent into deterministic second-order Newton-Raphson'
+      ],
+      explanation: 'Batch Normalization stabilizes gradient flow across deep architectures by standardizing layer inputs and learning optimal scale (γ) and shift (β) parameters.',
+      sourceDoc: 'Deep_Architectures.pdf',
+      sourcePage: 52
     }
   ],
 
@@ -247,6 +334,20 @@ const TOPIC_QUESTION_BANK: Record<string, BankQuestion[]> = {
       explanation: 'Momentum dampens high-frequency oscillations perpendicular to the valley while building momentum along the gentle slope towards the minimizer.',
       sourceDoc: 'Deep_Optimizers.pdf',
       sourcePage: 31
+    },
+    {
+      topic: 'SGD vs Batch Gradient Descent',
+      course: 'Machine Learning',
+      questionText: 'What is the main computational advantage of Mini-Batch Gradient Descent over full Batch Gradient Descent?',
+      correctAnswer: 'It updates parameters using a small sample (e.g. 32-256 examples), fitting in GPU RAM and escaping shallow local minima through gradient noise',
+      distractors: [
+        'It mathematically guarantees monotonic decreases in the loss function at every step',
+        'It eliminates the need to specify a learning rate parameter',
+        'It completely avoids the need for computing backpropagation gradients'
+      ],
+      explanation: 'Batch gradient descent requires loading the entire dataset into memory for a single update. Mini-batch leverages vectorized GPU tensor cores and introduces stochasticity to escape saddles.',
+      sourceDoc: 'Optimization_Methods.pdf',
+      sourcePage: 38
     }
   ],
 
@@ -321,6 +422,20 @@ const TOPIC_QUESTION_BANK: Record<string, BankQuestion[]> = {
       explanation: 'Mutex ownership semantics allow priority inheritance protocols to prevent priority inversion, which is impossible with semaphores.',
       sourceDoc: 'OS_Synchronization.pdf',
       sourcePage: 35
+    },
+    {
+      topic: 'Deadlock Recovery Mechanisms',
+      course: 'Operating Systems',
+      questionText: 'When a deadlock is detected via Wait-For Graph cycle detection, what is the primary criterion for selecting a "victim" process to abort?',
+      correctAnswer: 'Minimizing overall termination cost (considering CPU time already used, priority, and resources held)',
+      distractors: [
+        'Always aborting the oldest process running on the system',
+        'Randomly selecting a thread using hardware seed generators',
+        'Aborting all processes in the Ready queue simultaneously'
+      ],
+      explanation: 'Victim selection evaluates process priority, computation progress already completed, number of locked resources, and rollback feasibility.',
+      sourceDoc: 'OS_Deadlock_Recovery.pdf',
+      sourcePage: 49
     }
   ]
 };
@@ -347,7 +462,7 @@ function resolveTopicBucket(topic: string, course?: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Dynamic Gemini Quiz Generator
+// Dynamic Gemini Quiz Generator — High Diversity, Zero Repetition
 // ---------------------------------------------------------------------------
 async function generateQuizWithGemini(
   config: QuizConfig,
@@ -355,13 +470,21 @@ async function generateQuizWithGemini(
 ): Promise<QuizQuestion[] | null> {
   const count = config.questionCount || 5;
   const topicName = config.topic || config.course || 'Computer Science & Engineering';
+  const topicKey = topicName.toLowerCase().trim();
+
+  // Get previously served questions for this topic to strictly avoid repetition
+  const previouslyServed = Array.from(servedQuestionHistory.get(topicKey) || []);
+  const avoidanceClause = previouslyServed.length > 0
+    ? `\nMANDATORY ANTI-DUPLICATION RULE:\nThe student has already answered these questions in previous rounds:\n${previouslyServed.slice(-15).map((q, i) => `${i + 1}. "${q}"`).join('\n')}\nDO NOT repeat, rephrase, or duplicate any of the questions above! Generate completely fresh and novel questions on ${topicName} covering different angles, scenarios, calculations, or mechanisms.\n`
+    : '';
+
   const salt = Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
 
   const prompt = `You are a distinguished university professor and computer science examiner.
 Create an active, rigorous multiple-choice assessment of ${count} questions strictly grounded in the topic: "${topicName}".
 
 ${config.contextText ? `GROUNDING CONTEXT FROM LECTURE / DIAGRAM:\n${config.contextText}\n` : ''}
-
+${avoidanceClause}
 STRICT ASSESSMENT RULES:
 1. Every question must be directly focused on "${topicName}" and its underlying principles, equations, mechanisms, or architectural trade-offs.
 2. Ensure VARIETY in question styles across the ${count} questions:
@@ -399,7 +522,7 @@ Strictly return a JSON object with this schema:
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 0.3,
+            temperature: 0.75, // Higher temperature for rich diversity and zero repetition
             responseMimeType: 'application/json'
           }
         })
@@ -413,7 +536,9 @@ Strictly return a JSON object with this schema:
 
       const parsed = JSON.parse(rawText);
       if (parsed && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
-        return parsed.questions.slice(0, count).map((q: any, idx: number) => {
+        const historySet = servedQuestionHistory.get(topicKey) || new Set<string>();
+
+        const formattedQuestions: QuizQuestion[] = parsed.questions.slice(0, count).map((q: any, idx: number) => {
           let opts: string[] = Array.isArray(q.options) ? q.options : ['A', 'B', 'C', 'D'];
           let correctIdx = typeof q.correctOptionIndex === 'number' ? q.correctOptionIndex : 0;
 
@@ -423,12 +548,15 @@ Strictly return a JSON object with this schema:
           const finalOpts = shuffledTuples.map(t => t.opt);
           const finalCorrectIdx = shuffledTuples.findIndex(t => t.isCorrect);
 
+          const qText = q.questionText || q.question || `Assessment Question on ${topicName}`;
+          historySet.add(qText);
+
           return {
             id: `q-gemini-${Date.now()}-${idx}`,
             course: config.course || 'Computer Science',
             topic: q.topic || topicName,
             type: 'mcq',
-            questionText: q.questionText || q.question || 'Academic Assessment Question',
+            questionText: qText,
             options: finalOpts,
             correctOptionIndex: finalCorrectIdx >= 0 ? finalCorrectIdx : 0,
             explanation: q.explanation || 'Detailed academic explanation.',
@@ -436,6 +564,9 @@ Strictly return a JSON object with this schema:
             sourcePage: idx + 1
           };
         });
+
+        servedQuestionHistory.set(topicKey, historySet);
+        return formattedQuestions;
       }
     } catch (err) {
       console.warn(`Gemini model ${model} quiz generation failed:`, err);
@@ -446,7 +577,7 @@ Strictly return a JSON object with this schema:
 }
 
 // ---------------------------------------------------------------------------
-// Dynamic Fallback Synthesizer — Varied Patterns Every Single Time
+// Dynamic Fallback Synthesizer — Shuffled, Non-Repeating Offline Bank
 // ---------------------------------------------------------------------------
 function synthesizeFallbackQuiz(config: QuizConfig): QuizQuestion[] {
   const count = config.questionCount || 5;
@@ -455,9 +586,21 @@ function synthesizeFallbackQuiz(config: QuizConfig): QuizQuestion[] {
   const bank = TOPIC_QUESTION_BANK[bucketKey];
 
   if (bank && bank.length > 0) {
-    // Shuffle the question bank so questions are different every session
-    const shuffledBank = shuffleArray(bank);
+    const historySet = servedQuestionHistory.get(bucketKey) || new Set<string>();
+    let available = bank.filter(bq => !historySet.has(bq.questionText));
+
+    // If not enough unserved questions remain, clear history for this topic and cycle fresh
+    if (available.length < count) {
+      historySet.clear();
+      available = [...bank];
+    }
+
+    const shuffledBank = shuffleArray(available);
     const selected = shuffledBank.slice(0, count);
+
+    // Save to history so they won't repeat on next click
+    selected.forEach(s => historySet.add(s.questionText));
+    servedQuestionHistory.set(bucketKey, historySet);
 
     return selected.map((bq, idx) => {
       // Shuffle options dynamically so correct answer position varies randomly (0..3)
@@ -537,6 +680,26 @@ function synthesizeFallbackQuiz(config: QuizConfig): QuizQuestion[] {
         `Counting total lines of source code in the implementation repository`
       ],
       explanation: `Formal verification of "${topicName}" relies on invariant proofs and algorithmic asymptotic bounds.`
+    },
+    {
+      q: `What is the computational complexity bound typically required for operations in "${topicName}"?`,
+      correct: `Logarithmic O(log n) or linear amortized O(n) bounds to guarantee scalability across large workloads`,
+      distractors: [
+        `Strictly exponential O(2ⁿ) execution time in all typical instances`,
+        `O(n!) factorial complexity for sorting and search procedures`,
+        `Zero CPU operations by evaluating calculations prior to execution`
+      ],
+      explanation: `Production implementations of "${topicName}" require efficient polynomial or logarithmic scalability.`
+    },
+    {
+      q: `If an unexpected exception occurs during the execution lifecycle of "${topicName}", what is the recommended recovery procedure?`,
+      correct: `Roll back state modifications to the most recent checkpoint and notify calling layers gracefully`,
+      distractors: [
+        `Ignore error codes and proceed with corrupted memory buffers`,
+        `Crash the operating system kernel immediately without releasing locks`,
+        `Overwrite disk logs with random bit patterns`
+      ],
+      explanation: `Resilient systems maintain idempotency and rollback capabilities to preserve consistency upon fault.`
     }
   ];
 

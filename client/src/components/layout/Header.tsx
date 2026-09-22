@@ -158,14 +158,14 @@ export const Header: React.FC = () => {
               onFocus={() => searchQuery.trim() && setIsDropdownOpen(true)}
               style={{
                 paddingLeft: '32px',
-                paddingRight: '60px',
+                paddingRight: '32px',
                 fontSize: '0.8125rem',
                 backgroundColor: 'var(--bg-surface-subtle)',
                 borderColor: isDropdownOpen ? 'var(--accent-primary-border)' : 'transparent'
               }}
             />
 
-            {searchQuery ? (
+            {searchQuery && (
               <button
                 onClick={() => { setSearchQuery(''); setIsDropdownOpen(false); }}
                 style={{
@@ -183,24 +183,6 @@ export const Header: React.FC = () => {
               >
                 <X size={14} />
               </button>
-            ) : (
-              <span
-                style={{
-                  position: 'absolute',
-                  right: '8px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  fontSize: '0.6875rem',
-                  color: 'var(--text-muted)',
-                  backgroundColor: 'var(--bg-surface)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: '4px',
-                  padding: '1px 5px',
-                  fontFamily: 'var(--font-mono)'
-                }}
-              >
-                ⌘K
-              </span>
             )}
 
             {/* Interactive Search Results Dropdown Overlay */}
