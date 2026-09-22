@@ -1,7 +1,16 @@
 /* Clean non-destructive base resets that coexist seamlessly with Tailwind v4 */
+*, *::before, *::after {
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 html, body {
   height: 100%;
   width: 100%;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 body {
@@ -11,6 +20,52 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure text write cursor (I-beam) and text selection are strictly preserved for text inputs and textareas */
+input,
+textarea,
+[contenteditable="true"],
+[contenteditable],
+[data-text-input="true"] {
+  cursor: text !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+/* Ensure buttons, links and interactive triggers show pointer cursor */
+a,
+button,
+select,
+summary,
+[role="button"],
+.btn,
+.clickable,
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"] {
+  cursor: pointer;
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+/* Allow text selection where users study or copy notes/documents/chat */
+.selectable-text,
+.document-content,
+.markdown-body,
+.chat-message-content {
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: auto;
 }
 
 #root {

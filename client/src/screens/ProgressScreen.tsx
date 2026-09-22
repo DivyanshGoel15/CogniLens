@@ -172,7 +172,10 @@ export const ProgressScreen: React.FC = () => {
           </div>
 
           <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '6px' }}>
-            {progress?.currentStreakDays || 1} Days
+            {(() => {
+              const count = progress?.currentStreakDays !== undefined ? progress.currentStreakDays : 1;
+              return `${count} ${count === 1 ? 'Day' : 'Days'}`;
+            })()}
           </div>
 
           <div style={{ fontSize: '0.72rem', marginTop: '6px', fontWeight: 600 }}>

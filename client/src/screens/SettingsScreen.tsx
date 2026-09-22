@@ -268,7 +268,10 @@ export const SettingsScreen: React.FC = () => {
                   Active Streak Record
                 </div>
                 <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  {progress?.currentStreakDays || 1} Days Consecutive
+                  {(() => {
+                    const count = progress?.currentStreakDays !== undefined ? progress.currentStreakDays : 1;
+                    return `${count} ${count === 1 ? 'Day' : 'Days'} Consecutive`;
+                  })()}
                 </div>
               </div>
             </div>

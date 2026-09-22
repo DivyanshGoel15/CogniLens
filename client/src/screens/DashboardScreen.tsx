@@ -337,7 +337,10 @@ export const DashboardScreen: React.FC = () => {
                           <span>Active Streak</span>
                         </div>
                         <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
-                          {progress?.currentStreakDays || 6} Days
+                          {(() => {
+                            const count = progress?.currentStreakDays !== undefined ? progress.currentStreakDays : 6;
+                            return `${count} ${count === 1 ? 'Day' : 'Days'}`;
+                          })()}
                         </div>
                         <div style={{ fontSize: '0.6875rem', color: 'var(--color-warning-text)', marginTop: '2px' }}>
                           Consistent study
