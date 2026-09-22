@@ -16,6 +16,7 @@ import {
   Plus,
   LogOut
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useApp, AppRoute } from '../../context/AppContext';
 
 interface NavItem {
@@ -27,6 +28,7 @@ interface NavItem {
 
 export const Sidebar: React.FC = () => {
   const { currentRoute, setCurrentRoute, isSidebarCollapsed, setIsSidebarCollapsed, userProfile, startNewStudySession, logout } = useApp();
+  const navigate = useNavigate();
 
   const primaryNav: NavItem[] = [
     { route: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -234,7 +236,7 @@ export const Sidebar: React.FC = () => {
         </button>
 
         <button
-          onClick={logout}
+          onClick={() => { logout(); navigate('/'); }}
           style={{
             display: 'flex',
             alignItems: 'center',

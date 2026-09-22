@@ -8,9 +8,11 @@ import {
   Mail,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { useApp } from "../context/AppContext";
 
 const SignIn: React.FC = () => {
   const navigate = useNavigate();
+  const { login } = useApp();
 
   const [showPassword, setShowPassword] = useState(false);
 
@@ -38,27 +40,12 @@ const SignIn: React.FC = () => {
       return;
     }
 
-    /*
-     * Connect your backend here.
-     *
-     * Example:
-     *
-     * const response = await fetch("http://localhost:8000/auth/login", {
-     *   method: "POST",
-     *   headers: {
-     *     "Content-Type": "application/json",
-     *   },
-     *   body: JSON.stringify(formData),
-     * });
-     *
-     * const data = await response.json();
-     *
-     * localStorage.setItem("token", data.access_token);
-     */
-
     console.log("Sign in:", formData);
 
-    // Temporary navigation until backend authentication is connected
+    // Set auth state + user profile in AppContext
+    login(formData.email);
+
+    // Navigate to the protected app route
     navigate("/app");
   };
 

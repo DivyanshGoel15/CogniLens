@@ -10,9 +10,11 @@ import {
   User,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { useApp } from "../context/AppContext";
 
 const SignUp: React.FC = () => {
   const navigate = useNavigate();
+  const { signup } = useApp();
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -58,33 +60,16 @@ const SignUp: React.FC = () => {
       return;
     }
 
-    /*
-     * Connect your backend here.
-     *
-     * Example:
-     *
-     * const response = await fetch(
-     *   "http://localhost:8000/auth/register",
-     *   {
-     *     method: "POST",
-     *     headers: {
-     *       "Content-Type": "application/json",
-     *     },
-     *     body: JSON.stringify({
-     *       name: formData.name,
-     *       email: formData.email,
-     *       password: formData.password,
-     *     }),
-     *   }
-     * );
-     *
-     * const data = await response.json();
-     */
-
     console.log("Sign up:", formData);
 
-    // Temporary navigation
-    navigate("/signin");
+    // Set auth state + full user profile in AppContext
+    signup({
+      fullName: formData.name,
+      email: formData.email,
+    });
+
+    // Navigate directly to the protected app (user is now authenticated)
+    navigate("/app");
   };
 
   return (

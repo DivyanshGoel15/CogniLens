@@ -278,6 +278,38 @@ class MaterialService {
   }
 
   async getMaterials(): Promise<ApiResponse<MaterialSource[]>> {
+    // Try fetching from backend first, merge with local
+    try {
+      const isOnline = await apiClient.isServerOnline();
+      if (isOnline) {
+        const backendDocs = await apiClient.getDocuments();
+        if (backendDocs && backendDocs.length > 0) {
+          // Merge: add backend docs not already in local store
+          for (const bdoc of backendDocs) {
+            if (!this.materials.some(m => m.id === bdoc.id)) {
+              this.materials.push({
+                id: bdoc.id,
+                title: bdoc.title,
+                filename: bdoc.filename,
+                type: bdoc.type as any,
+                pagesCount: bdoc.pagesCount,
+                size: bdoc.size,
+                uploadDate: bdoc.uploadDate,
+                status: bdoc.status as any,
+                topics: bdoc.topics || [],
+                course: bdoc.course,
+                contentPreview: bdoc.contentPreview,
+                sections: bdoc.sections,
+              });
+            }
+          }
+          this.saveMaterials();
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch materials from backend, using local store', e);
+    }
+
     return {
       success: true,
       data: [...this.materials],
@@ -366,6 +398,21 @@ class MaterialService {
       onProgress(85, 'Extracting semantic chunks & indexing embeddings...');
       await new Promise(r => setTimeout(r, 400));
       onProgress(100, 'Ingestion complete. Ready to query.');
+    }
+
+    // Try uploading to backend first
+    try {
+      const isOnline = await apiClient.isServerOnline();
+      if (isOnline) {
+        const backendDoc = await apiClient.uploadDocument(file, courseParam || 'General');
+        if (backendDoc && backendDoc.id) {
+          // Update local material with backend ID for consistency
+          newMaterial.id = backendDoc.id;
+          this.saveMaterials();
+        }
+      }
+    } catch (e) {
+      console.warn('Backend upload failed, material stored locally only', e);
     }
 
     newMaterial.status = 'indexed';

@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 
 import { ToastProvider } from './context/ToastContext';
 import { AppProvider, useApp } from './context/AppContext';
@@ -19,14 +19,14 @@ import { StudyPlanScreen } from './screens/StudyPlanScreen';
 import { ProgressScreen } from './screens/ProgressScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 
-// New screens
+// Auth & Landing screens
 import LandingPage from './screens/LandingPage';
 import SignIn from './screens/SignIn';
 import SignUp from './screens/SignUp';
 
 
 // ======================================================
-// EXISTING COGNILENS APPLICATION
+// MAIN DASHBOARD CONTENT (uses AppContext route state)
 // ======================================================
 
 const MainContent: React.FC = () => {
@@ -97,74 +97,89 @@ const MainContent: React.FC = () => {
 
 
 // ======================================================
-// APP SHELL
+// AUTH GUARD — Redirects unauthenticated users to /signin
+// Also handles logout → navigate to /
 // ======================================================
 
-const CogniLensApp: React.FC = () => {
+const AuthGuard: React.FC = () => {
+  const { isAuthenticated } = useApp();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
+
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+
   return (
-    <AppProvider>
-      <DemoProvider>
-        <MainContent />
-      </DemoProvider>
-    </AppProvider>
+    <DemoProvider>
+      <MainContent />
+    </DemoProvider>
   );
 };
 
 
 // ======================================================
-// ROOT APP
+// ROOT APP — AppProvider wraps everything so auth is
+// available in all routes including SignIn/SignUp
 // ======================================================
 
 export function App() {
   return (
-    <BrowserRouter>
-      <ToastProvider>
-        <Routes>
+    <AppProvider>
+      <BrowserRouter>
+        <ToastProvider>
+          <Routes>
 
-          {/* =========================
-              LANDING PAGE
-             ========================= */}
-          <Route
-            path="/"
-            element={<LandingPage />}
-          />
+            {/* =========================
+                LANDING PAGE
+               ========================= */}
+            <Route
+              path="/"
+              element={<LandingPage />}
+            />
 
-          {/* =========================
-              SIGN IN
-             ========================= */}
-          <Route
-            path="/signin"
-            element={<SignIn />}
-          />
+            {/* =========================
+                SIGN IN
+               ========================= */}
+            <Route
+              path="/signin"
+              element={<SignIn />}
+            />
 
-          {/* =========================
-              SIGN UP
-             ========================= */}
-          <Route
-            path="/signup"
-            element={<SignUp />}
-          />
+            {/* =========================
+                SIGN UP
+               ========================= */}
+            <Route
+              path="/signup"
+              element={<SignUp />}
+            />
 
-          {/* =========================
-              MAIN COGNILENS APP
-             ========================= */}
-          <Route
-            path="/app/*"
-            element={<CogniLensApp />}
-          />
+            {/* =========================
+                MAIN COGNILENS APP (Protected)
+               ========================= */}
+            <Route
+              path="/app/*"
+              element={<AuthGuard />}
+            />
 
-          {/* =========================
-              UNKNOWN ROUTE
-             ========================= */}
-          <Route
-            path="*"
-            element={<Navigate to="/" replace />}
-          />
+            {/* =========================
+                UNKNOWN ROUTE
+               ========================= */}
+            <Route
+              path="*"
+              element={<Navigate to="/" replace />}
+            />
 
-        </Routes>
-      </ToastProvider>
-    </BrowserRouter>
+          </Routes>
+        </ToastProvider>
+      </BrowserRouter>
+    </AppProvider>
   );
 }
 
-export default App;
+export default App;

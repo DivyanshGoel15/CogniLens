@@ -70,7 +70,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (e) {
       console.warn('Failed to parse auth state', e);
     }
-    return true; // Default to true so existing users enter dashboard smoothly
+    return false; // Default to false — new users must sign in via Landing → SignIn
   });
 
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(() => {
