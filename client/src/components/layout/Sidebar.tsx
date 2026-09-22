@@ -13,7 +13,8 @@ import {
   ChevronLeft,
   ChevronRight,
   GraduationCap,
-  Plus
+  Plus,
+  LogOut
 } from 'lucide-react';
 import { useApp, AppRoute } from '../../context/AppContext';
 
@@ -25,7 +26,7 @@ interface NavItem {
 }
 
 export const Sidebar: React.FC = () => {
-  const { currentRoute, setCurrentRoute, isSidebarCollapsed, setIsSidebarCollapsed, userProfile, startNewStudySession } = useApp();
+  const { currentRoute, setCurrentRoute, isSidebarCollapsed, setIsSidebarCollapsed, userProfile, startNewStudySession, logout } = useApp();
 
   const primaryNav: NavItem[] = [
     { route: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -230,6 +231,24 @@ export const Sidebar: React.FC = () => {
         >
           <Settings size={16} />
           {!isSidebarCollapsed && <span>Settings</span>}
+        </button>
+
+        <button
+          onClick={logout}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: isSidebarCollapsed ? '8px 0' : '7px 10px',
+            justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+            borderRadius: 'var(--radius-md)',
+            color: 'var(--text-sidebar-muted)',
+            fontSize: '0.8125rem'
+          }}
+          title="Sign Out"
+        >
+          <LogOut size={16} />
+          {!isSidebarCollapsed && <span>Sign Out</span>}
         </button>
 
         {/* User profile avatar */}

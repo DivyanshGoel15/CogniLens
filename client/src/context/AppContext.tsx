@@ -6,6 +6,9 @@ import { QuizConfig } from '../types/quiz';
 import { UserProfile, INITIAL_USER_PROFILE, LearningProgressState } from '../types/progress';
 
 export type AppRoute =
+  | 'landing'
+  | 'login'
+  | 'signup'
   | 'dashboard'
   | 'ai-tutor'
   | 'materials'
@@ -18,10 +21,15 @@ export type AppRoute =
   | 'settings';
 
 const USER_PROFILE_KEY = 'cognilens_user_profile';
+const AUTH_KEY = 'cognilens_is_authenticated';
 
 interface AppContextType {
   currentRoute: AppRoute;
   setCurrentRoute: (route: AppRoute) => void;
+  isAuthenticated: boolean;
+  login: (email: string, name?: string) => void;
+  signup: (data: { fullName: string; email: string; major?: string; academicYear?: string }) => void;
+  logout: () => void;
   materials: MaterialSource[];
   selectedMaterial: MaterialSource | null;
   setSelectedMaterial: (mat: MaterialSource | null) => void;
@@ -55,7 +63,63 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [currentRoute, setCurrentRoute] = useState<AppRoute>('dashboard');
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem(AUTH_KEY);
+      if (stored !== null) return JSON.parse(stored);
+    } catch (e) {
+      console.warn('Failed to parse auth state', e);
+    }
+    return true; // Default to true so existing users enter dashboard smoothly
+  });
+
+  const [currentRoute, setCurrentRoute] = useState<AppRoute>(() => {
+    return isAuthenticated ? 'dashboard' : 'landing';
+  });
+
+  const login = (email: string, name?: string) => {
+    setIsAuthenticated(true);
+    try {
+      localStorage.setItem(AUTH_KEY, JSON.stringify(true));
+    } catch (e) {
+      console.warn('Failed to save auth state', e);
+    }
+    if (email) {
+      updateUserProfile({
+        email,
+        fullName: name || userProfile.fullName || 'Student Member',
+        avatarInitials: (name || userProfile.fullName || 'S').charAt(0).toUpperCase()
+      });
+    }
+    setCurrentRoute('dashboard');
+  };
+
+  const signup = (data: { fullName: string; email: string; major?: string; academicYear?: string }) => {
+    setIsAuthenticated(true);
+    try {
+      localStorage.setItem(AUTH_KEY, JSON.stringify(true));
+    } catch (e) {
+      console.warn('Failed to save auth state', e);
+    }
+    updateUserProfile({
+      fullName: data.fullName,
+      email: data.email,
+      major: data.major || 'Computer Science',
+      academicYear: data.academicYear || 'Year 3',
+      avatarInitials: data.fullName.charAt(0).toUpperCase()
+    });
+    setCurrentRoute('dashboard');
+  };
+
+  const logout = () => {
+    setIsAuthenticated(false);
+    try {
+      localStorage.setItem(AUTH_KEY, JSON.stringify(false));
+    } catch (e) {
+      console.warn('Failed to save auth state', e);
+    }
+    setCurrentRoute('landing');
+  };
   const [materials, setMaterials] = useState<MaterialSource[]>([]);
   const [selectedMaterial, setSelectedMaterial] = useState<MaterialSource | null>(null);
   const [selectedPage, setSelectedPage] = useState<number>(1);
@@ -196,6 +260,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       value={{
         currentRoute,
         setCurrentRoute,
+        isAuthenticated,
+        login,
+        signup,
+        logout,
         materials,
         selectedMaterial,
         setSelectedMaterial,
