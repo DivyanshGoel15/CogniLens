@@ -16,3 +16,4 @@ uvicorn>=0.28.0
 
 # Multimodal Speech
 azure-cognitiveservices-speech>=1.51.0
+python-multipart>=0.0.9

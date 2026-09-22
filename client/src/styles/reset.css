@@ -1,9 +1,4 @@
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
+/* Clean non-destructive base resets that coexist seamlessly with Tailwind v4 */
 html, body {
   height: 100%;
   width: 100%;
@@ -16,33 +11,12 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
 }
 
-input, button, textarea, select {
-  font: inherit;
-  color: inherit;
-}
-
-button {
-  cursor: pointer;
-  border: none;
-  background: none;
-  text-align: left;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-img, svg, picture, canvas {
-  display: block;
-  max-width: 100%;
-}
-
-ul, ol {
-  list-style: none;
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Custom subtle scrollbars */
