@@ -25,8 +25,43 @@ interface ConversationSessionItem {
   title: string;
   courseTag: string;
   updatedAt: string;
+  lastActiveTimestamp?: number;
   messages: ChatMessageType[];
 }
+
+export const formatRelativeTime = (timestamp?: number, fallbackStr?: string): string => {
+  if (!timestamp || isNaN(timestamp)) {
+    if (fallbackStr && fallbackStr !== 'Just now') return fallbackStr;
+    return 'Just now';
+  }
+
+  const now = Date.now();
+  const diffSec = Math.max(0, Math.floor((now - timestamp) / 1000));
+
+  if (diffSec < 45) {
+    return 'Just now';
+  }
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) {
+    return `${diffMin}m ago`;
+  }
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) {
+    return `${diffHours}h ago`;
+  }
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) {
+    return 'Yesterday';
+  }
+  if (diffDays < 7) {
+    return `${diffDays}d ago`;
+  }
+  const diffWeeks = Math.floor(diffDays / 7);
+  if (diffWeeks < 4) {
+    return `${diffWeeks}w ago`;
+  }
+  return new Date(timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
+};
 
 const PRESET_SESSIONS: ConversationSessionItem[] = [
   {
@@ -34,6 +69,7 @@ const PRESET_SESSIONS: ConversationSessionItem[] = [
     title: 'OS Deadlock Coffman Conditions',
     courseTag: 'Operating Systems',
     updatedAt: '10m ago',
+    lastActiveTimestamp: Date.now() - 10 * 60 * 1000,
     messages: [
       ...INITIAL_CONVERSATION_MESSAGES,
       {
@@ -89,6 +125,7 @@ const PRESET_SESSIONS: ConversationSessionItem[] = [
     title: 'Linear Regression MSE Formulation',
     courseTag: 'Machine Learning',
     updatedAt: '2h ago',
+    lastActiveTimestamp: Date.now() - 2 * 60 * 60 * 1000,
     messages: [
       {
         id: 'msg-ml-u',
@@ -120,6 +157,7 @@ const PRESET_SESSIONS: ConversationSessionItem[] = [
     title: '3NF vs BCNF Decomposition',
     courseTag: 'DBMS',
     updatedAt: 'Yesterday',
+    lastActiveTimestamp: Date.now() - 24 * 60 * 60 * 1000,
     messages: [
       {
         id: 'msg-db-u',
@@ -157,7 +195,30 @@ export const AITutorScreen: React.FC = () => {
       const stored = localStorage.getItem(SESSIONS_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const currentTime = Date.now();
+          return parsed.map((item: any, idx: number) => {
+            let ts = typeof item.lastActiveTimestamp === 'number' ? item.lastActiveTimestamp : undefined;
+            if (!ts) {
+              if (item.updatedAt === '10m ago') {
+                ts = currentTime - 10 * 60 * 1000;
+              } else if (item.updatedAt === '2h ago') {
+                ts = currentTime - 2 * 3600 * 1000;
+              } else if (item.updatedAt === 'Yesterday') {
+                ts = currentTime - 24 * 3600 * 1000;
+              } else if (item.updatedAt === 'Just now') {
+                // If previously stored as static "Just now", provide realistic graduated offsets so they aren't identical
+                ts = currentTime - (idx === 0 ? 1 : idx * 4) * 60 * 1000;
+              } else {
+                ts = currentTime - idx * 5 * 60 * 1000;
+              }
+            }
+            return {
+              ...item,
+              lastActiveTimestamp: ts
+            };
+          });
+        }
       }
     } catch (e) {
       console.warn('Failed to parse chat sessions from localStorage', e);
@@ -169,6 +230,15 @@ export const AITutorScreen: React.FC = () => {
   const messageListContainerRef = useRef<HTMLDivElement>(null);
   const isUserSendingRef = useRef(false);
   const lastSignalRef = useRef<number>(0);
+
+  // Periodic ticker to dynamically recalculate relative times (e.g., Just now -> 1m ago -> 2m ago) every 15 seconds
+  const [, setTicker] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTicker(t => t + 1);
+    }, 15000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Persist sessions whenever they change
   useEffect(() => {
@@ -203,12 +273,14 @@ export const AITutorScreen: React.FC = () => {
 
   const handleNewSession = () => {
     const newId = `sess-${Date.now()}`;
+    const timestampNow = Date.now();
     setSessions(prev => {
       const newSess: ConversationSessionItem = {
         id: newId,
         title: `Study Session #${prev.length + 1}`,
         courseTag: 'General',
         updatedAt: 'Just now',
+        lastActiveTimestamp: timestampNow,
         messages: [...INITIAL_CONVERSATION_MESSAGES]
       };
       return [newSess, ...prev];
@@ -245,18 +317,22 @@ export const AITutorScreen: React.FC = () => {
       isStreaming: true
     };
 
-    setSessions(prev =>
-      prev.map(s => {
+    const userMsgTimestamp = Date.now();
+    setSessions(prev => {
+      const updated = prev.map(s => {
         if (s.id === activeSessionId) {
           return {
             ...s,
             title: s.messages.length <= 1 ? text.slice(0, 32) + '...' : s.title,
+            lastActiveTimestamp: userMsgTimestamp,
+            updatedAt: 'Just now',
             messages: [...s.messages, userMsg, initialAiMsg]
           };
         }
         return s;
-      })
-    );
+      });
+      return [...updated].sort((a, b) => (b.lastActiveTimestamp || 0) - (a.lastActiveTimestamp || 0));
+    });
 
     setIsLoading(true);
 
@@ -291,11 +367,14 @@ export const AITutorScreen: React.FC = () => {
               })
             );
           } else if (event.type === 'complete' && event.fullResponse) {
+            const completionTimestamp = Date.now();
             setSessions(prev =>
               prev.map(s => {
                 if (s.id === activeSessionId) {
                   return {
                     ...s,
+                    lastActiveTimestamp: completionTimestamp,
+                    updatedAt: 'Just now',
                     messages: s.messages.map(m =>
                       m.id === placeholderAiMsgId
                         ? {
@@ -381,7 +460,7 @@ export const AITutorScreen: React.FC = () => {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.6875rem', color: 'var(--text-tertiary)', marginTop: '2px' }}>
                     <span>{sess.courseTag}</span>
-                    <span>{sess.updatedAt}</span>
+                    <span>{formatRelativeTime(sess.lastActiveTimestamp, sess.updatedAt)}</span>
                   </div>
                 </div>
 
