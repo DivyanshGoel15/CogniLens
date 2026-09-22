@@ -1,4 +1,4 @@
-Generate a deck of active recall flashcards based on the provided document context.
+Generate a deck of high-yield, academically detailed active recall flashcards based on the provided document context.
 
 Topic: {topic}
 Number of Flashcards: {num_cards}
@@ -9,9 +9,13 @@ Document Context:
 ---
 
 Flashcard Design Rules:
-1. Make front questions atomic (testing a single specific fact, concept, or relationship).
-2. Keep back answers direct, precise, and concise (1-3 sentences max).
-3. Provide a helpful hint for each card to aid memory retrieval.
+1. Make front questions precise, engaging, and focused on core concepts, algorithms, architectural trade-offs, or exam scenarios.
+2. Back answers MUST be comprehensive, structured, and contain the MOST IMPORTANT POINTS of that topic:
+   - Clear definition and core principle
+   - Step-by-step mechanics or key technical points (bullet points)
+   - Governing mathematical formula, invariant, or time/space complexity where applicable
+   - Critical exam takeaway or common pitfall to avoid
+3. Provide a helpful hint for each card to aid memory retrieval without giving away the complete answer.
 4. Assign an appropriate difficulty rating (Easy, Medium, Hard) to each card.
 5. Format your output strictly as a JSON object matching the FlashcardResponse schema:
    {{
@@ -21,9 +25,9 @@ Flashcard Design Rules:
      "cards": [
        {{
          "card_id": 1,
-         "front_question": "Atomic question?",
-         "back_answer": "Concise answer.",
-         "hint": "Helpful hint",
+         "front_question": "Targeted conceptual question?",
+         "back_answer": "Comprehensive answer containing definition, key bullet points, formulas/complexity, and exam takeaway.",
+         "hint": "Helpful conceptual hint",
          "topic": "{topic}",
          "difficulty": "Medium"
        }}

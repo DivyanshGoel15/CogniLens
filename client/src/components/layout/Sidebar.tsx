@@ -195,7 +195,7 @@ export const Sidebar: React.FC = () => {
       )}
 
       {/* Quick Action Button */}
-      {!isSidebarCollapsed && (
+      {!isSidebarCollapsed ? (
         <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border-sidebar)' }}>
           <button
             onClick={startNewStudySession}
@@ -204,6 +204,17 @@ export const Sidebar: React.FC = () => {
           >
             <Plus size={15} />
             <span>New Study Session</span>
+          </button>
+        </div>
+      ) : (
+        <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border-sidebar)', display: 'flex', justifyContent: 'center' }}>
+          <button
+            onClick={startNewStudySession}
+            className="btn btn-primary"
+            style={{ width: '38px', height: '38px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}
+            title="New Study Session"
+          >
+            <Plus size={18} />
           </button>
         </div>
       )}

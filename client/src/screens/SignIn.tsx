@@ -53,17 +53,17 @@ const SignIn: React.FC = () => {
     <div className="min-h-screen bg-slate-950 text-white">
       <div className="grid min-h-screen lg:grid-cols-2">
         {/* Left panel */}
-        <div className="relative hidden overflow-hidden bg-indigo-600 lg:flex">
-          <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 via-indigo-700 to-slate-950" />
+        <div className="relative hidden overflow-hidden bg-blue-600 lg:flex">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-blue-700 to-slate-950" />
 
           <div className="relative z-10 flex flex-col justify-between p-12">
             <Link to="/" className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 shadow-md">
                 <Brain size={23} />
               </div>
 
               <span className="text-xl font-bold">
-                Cogni<span className="text-indigo-200">Lens</span>
+                Cogni<span className="text-blue-200">Lens</span>
               </span>
             </Link>
 
@@ -71,10 +71,10 @@ const SignIn: React.FC = () => {
               <h1 className="text-5xl font-bold leading-tight">
                 Your knowledge.
                 <br />
-                <span className="text-indigo-200">Made intelligent.</span>
+                <span className="text-blue-200">Made intelligent.</span>
               </h1>
 
-              <p className="mt-6 text-lg leading-8 text-indigo-100">
+              <p className="mt-6 text-lg leading-8 text-blue-100">
                 Upload documents, ask questions, generate quizzes and
                 explore your knowledge with AI.
               </p>
@@ -86,7 +86,7 @@ const SignIn: React.FC = () => {
               </div>
             </div>
 
-            <p className="text-sm text-indigo-200">
+            <p className="text-sm text-blue-200">
               AI-powered learning with CogniLens
             </p>
           </div>
@@ -105,12 +105,12 @@ const SignIn: React.FC = () => {
 
             <div className="mb-8 lg:hidden">
               <Link to="/" className="flex items-center gap-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600">
                   <Brain size={22} />
                 </div>
 
                 <span className="text-xl font-bold">
-                  Cogni<span className="text-indigo-400">Lens</span>
+                  Cogni<span className="text-blue-400">Lens</span>
                 </span>
               </Link>
             </div>
@@ -142,7 +142,7 @@ const SignIn: React.FC = () => {
                     value={formData.email}
                     onChange={handleChange}
                     placeholder="you@example.com"
-                    className="w-full rounded-xl border border-white/10 bg-white/5 py-3.5 pl-11 pr-4 outline-none transition placeholder:text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 py-3.5 pl-11 pr-4 outline-none transition placeholder:text-slate-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                   />
                 </div>
               </div>
@@ -156,7 +156,7 @@ const SignIn: React.FC = () => {
 
                   <button
                     type="button"
-                    className="text-sm text-indigo-400 hover:text-indigo-300"
+                    className="text-sm text-blue-400 hover:text-blue-300"
                   >
                     Forgot password?
                   </button>
@@ -174,7 +174,7 @@ const SignIn: React.FC = () => {
                     value={formData.password}
                     onChange={handleChange}
                     placeholder="Enter your password"
-                    className="w-full rounded-xl border border-white/10 bg-white/5 py-3.5 pl-11 pr-12 outline-none transition placeholder:text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 py-3.5 pl-11 pr-12 outline-none transition placeholder:text-slate-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                   />
 
                   <button
@@ -199,7 +199,7 @@ const SignIn: React.FC = () => {
 
               <button
                 type="submit"
-                className="w-full rounded-xl bg-indigo-600 py-3.5 font-semibold transition hover:bg-indigo-500"
+                className="w-full rounded-xl bg-blue-600 py-3.5 font-semibold transition hover:bg-blue-500 shadow-lg shadow-blue-600/25"
               >
                 Sign In
               </button>
@@ -215,7 +215,7 @@ const SignIn: React.FC = () => {
               Don't have an account?{" "}
               <Link
                 to="/signup"
-                className="font-semibold text-indigo-400 hover:text-indigo-300"
+                className="font-semibold text-blue-400 hover:text-blue-300"
               >
                 Create one
               </Link>
@@ -229,7 +229,7 @@ const SignIn: React.FC = () => {
 
 const Benefit: React.FC<{ text: string }> = ({ text }) => {
   return (
-    <div className="flex items-center gap-3 text-indigo-100">
+    <div className="flex items-center gap-3 text-blue-100">
       <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/10">
         ✓
       </div>

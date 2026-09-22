@@ -18,6 +18,8 @@ export interface QuizConfig {
   sourceId?: string;
   course?: string;
   topic?: string;
+  contextText?: string;
+  timestamp?: number;
   questionCount: number;
   difficulty: DifficultyLevel;
   questionType: QuestionType | 'all';

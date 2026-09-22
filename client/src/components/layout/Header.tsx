@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Upload, Sun, Moon, Menu, BookOpen, Sparkles, HelpCircle, X, ChevronRight } from 'lucide-react';
+import { Search, Upload, Sun, Moon, Menu, BookOpen, Sparkles, HelpCircle, X, ChevronRight, ArrowLeft } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { MaterialUploadModal } from '../materials/MaterialUploadModal';
 
@@ -15,7 +15,9 @@ export const Header: React.FC = () => {
     materials,
     openDocumentViewer,
     setPrefilledPrompt,
-    startQuiz
+    startQuiz,
+    goBack,
+    canGoBack
   } = useApp();
 
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -102,8 +104,8 @@ export const Header: React.FC = () => {
           zIndex: 30
         }}
       >
-        {/* Left: Mobile Toggle & Global Search */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, maxWidth: '540px' }}>
+        {/* Left: Mobile Toggle, Universal Back Button & Global Search */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, maxWidth: '620px' }}>
           <button
             onClick={() => setIsMobileDrawerOpen(true)}
             className="btn btn-ghost btn-icon mobile-only"
@@ -111,6 +113,33 @@ export const Header: React.FC = () => {
             style={{ display: 'none' }}
           >
             <Menu size={18} />
+          </button>
+
+          {/* Universal Back Button */}
+          <button
+            onClick={goBack}
+            disabled={!canGoBack}
+            className="btn btn-ghost btn-sm"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              fontSize: '0.8125rem',
+              fontWeight: 500,
+              color: canGoBack ? 'var(--text-primary)' : 'var(--text-muted)',
+              backgroundColor: 'var(--bg-surface-subtle)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: '8px',
+              cursor: canGoBack ? 'pointer' : 'not-allowed',
+              opacity: canGoBack ? 1 : 0.45,
+              flexShrink: 0,
+              transition: 'all 0.15s ease'
+            }}
+            title={canGoBack ? 'Back to previous page' : 'No previous page'}
+          >
+            <ArrowLeft size={15} />
+            <span>Back</span>
           </button>
 
           <div style={{ position: 'relative', width: '100%' }}>

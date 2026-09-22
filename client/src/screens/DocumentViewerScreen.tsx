@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -12,11 +12,14 @@ import {
   Bookmark,
   Share2,
   CheckCircle2,
-  ArrowRight
+  ArrowRight,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { SelectionActionHUD } from '../components/document-viewer/SelectionActionHUD';
 import { useToast } from '../context/ToastContext';
+import { multimodalVisionService } from '../services/multimodalVisionService';
 
 export const DocumentViewerScreen: React.FC = () => {
   const {
@@ -49,19 +52,74 @@ export const DocumentViewerScreen: React.FC = () => {
     ]
   };
 
+  const { showToast } = useToast();
   const [activePage, setActivePage] = useState<number>(selectedPage || 1);
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [selectedText, setSelectedText] = useState<string>('');
   const [hudPosition, setHudPosition] = useState<{ x: number; y: number } | null>(null);
 
+  // Text-To-Speech (TTS) State
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+  const ttsStopRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
     if (selectedPage) setActivePage(selectedPage);
   }, [selectedPage]);
 
-  // When activePage changes, record progress
+  // Cleanup TTS on unmount
+  useEffect(() => {
+    return () => {
+      if (ttsStopRef.current) {
+        ttsStopRef.current();
+        ttsStopRef.current = null;
+      }
+    };
+  }, []);
+
+  // When activePage changes, stop current speech and record progress
   const changePage = (newPage: number) => {
+    if (ttsStopRef.current) {
+      ttsStopRef.current();
+      ttsStopRef.current = null;
+    }
+    setIsSpeaking(false);
     setActivePage(newPage);
     recordDocumentRead(activeMaterial, newPage);
+  };
+
+  // Helper to extract spoken text for current page
+  const getPageSpokenText = (): string => {
+    const raw = getPageTextContent(activePage);
+    if (raw) return raw;
+    const sec = activeMaterial.sections?.find(s => s.page === activePage);
+    if (sec) return `${sec.title}. ${sec.snippet}`;
+    return `${activeMaterial.title}, Page ${activePage}. Course: ${activeMaterial.course}. Topics: ${activeMaterial.topics.join(', ')}.`;
+  };
+
+  // Toggle Text-to-Speech narration
+  const handleToggleTTS = () => {
+    if (isSpeaking) {
+      if (ttsStopRef.current) {
+        ttsStopRef.current();
+        ttsStopRef.current = null;
+      }
+      setIsSpeaking(false);
+      return;
+    }
+
+    const narrationText = getPageSpokenText();
+
+    const controller = multimodalVisionService.speakText(
+      narrationText,
+      () => setIsSpeaking(true),
+      () => setIsSpeaking(false),
+      (err) => {
+        setIsSpeaking(false);
+        showToast('Text-to-Speech Notice', err, 'info');
+      }
+    );
+
+    ttsStopRef.current = controller.stop;
   };
 
   // Handle text selection in document reader
@@ -465,17 +523,38 @@ export const DocumentViewerScreen: React.FC = () => {
             </button>
           </div>
 
-          {/* Zoom Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <button onClick={() => setZoomLevel(Math.max(75, zoomLevel - 15))} className="btn btn-ghost btn-sm" title="Zoom Out">
-              <ZoomOut size={15} />
+          {/* TTS Listen & Zoom Controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              onClick={handleToggleTTS}
+              className={`btn ${isSpeaking ? 'btn-danger' : 'btn-secondary'} btn-sm`}
+              style={{ gap: '6px', padding: '4px 10px', fontSize: '0.785rem' }}
+              title={isSpeaking ? 'Stop audio playback' : 'Listen to current page content aloud (Text-to-Speech)'}
+            >
+              {isSpeaking ? (
+                <>
+                  <VolumeX size={14} className="animate-pulse" />
+                  <span>Stop Audio</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 size={14} color="var(--accent-primary)" />
+                  <span>Listen (TTS)</span>
+                </>
+              )}
             </button>
-            <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
-              {zoomLevel}%
-            </span>
-            <button onClick={() => setZoomLevel(Math.min(150, zoomLevel + 15))} className="btn btn-ghost btn-sm" title="Zoom In">
-              <ZoomIn size={15} />
-            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', borderLeft: '1px solid var(--border-subtle)', paddingLeft: '8px' }}>
+              <button onClick={() => setZoomLevel(Math.max(75, zoomLevel - 15))} className="btn btn-ghost btn-sm" title="Zoom Out">
+                <ZoomOut size={15} />
+              </button>
+              <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
+                {zoomLevel}%
+              </span>
+              <button onClick={() => setZoomLevel(Math.min(150, zoomLevel + 15))} className="btn btn-ghost btn-sm" title="Zoom In">
+                <ZoomIn size={15} />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -544,6 +623,25 @@ export const DocumentViewerScreen: React.FC = () => {
 
         {/* Quick Document Actions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+          <button
+            onClick={handleToggleTTS}
+            className={`btn ${isSpeaking ? 'btn-danger' : 'btn-secondary'} btn-sm`}
+            style={{ justifyContent: 'flex-start', gap: '8px' }}
+            title={isSpeaking ? 'Stop audio playback' : `Listen to page ${activePage} out loud`}
+          >
+            {isSpeaking ? (
+              <>
+                <VolumeX size={14} className="animate-pulse" />
+                <span>Stop Audio Narration</span>
+              </>
+            ) : (
+              <>
+                <Volume2 size={14} color="var(--accent-primary)" />
+                <span>Listen to Page {activePage} (TTS)</span>
+              </>
+            )}
+          </button>
+
           <button onClick={handleSummarizePage} className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start', gap: '8px' }}>
             <Sparkles size={14} color="var(--accent-primary)" />
             <span>Summarize Page {activePage}</span>

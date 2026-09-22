@@ -28,13 +28,14 @@ export const DashboardScreen: React.FC = () => {
     setPrefilledPrompt,
     openDocumentViewer,
     startQuiz,
-    progress
+    progress,
+    startNewStudySession
   } = useApp();
 
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
   const handleAskAIQuick = () => {
-    setCurrentRoute('ai-tutor');
+    startNewStudySession();
   };
 
   const handleCreateQuizQuick = () => {

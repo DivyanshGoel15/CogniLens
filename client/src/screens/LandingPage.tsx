@@ -22,12 +22,12 @@ const LandingPage: React.FC = () => {
             onClick={() => navigate("/")}
             className="flex items-center gap-2"
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 shadow-md shadow-blue-600/30">
               <Brain size={23} />
             </div>
 
             <span className="text-xl font-bold tracking-tight">
-              Cogni<span className="text-indigo-400">Lens</span>
+              Cogni<span className="text-blue-400">Lens</span>
             </span>
           </button>
 
@@ -55,7 +55,7 @@ const LandingPage: React.FC = () => {
 
             <button
               onClick={() => navigate("/signup")}
-              className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold transition hover:bg-indigo-500"
+              className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold transition hover:bg-blue-500 shadow-sm shadow-blue-600/20"
             >
               Get Started
             </button>
@@ -63,7 +63,7 @@ const LandingPage: React.FC = () => {
 
           <button
             onClick={() => navigate("/signup")}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold md:hidden"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold transition hover:bg-blue-500 md:hidden"
           >
             Get Started
           </button>
@@ -72,17 +72,17 @@ const LandingPage: React.FC = () => {
 
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="absolute left-1/2 top-0 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-indigo-600/20 blur-[120px]" />
+        <div className="absolute left-1/2 top-0 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-blue-600/20 blur-[120px]" />
 
         <div className="relative mx-auto max-w-7xl px-6 pb-24 pt-24 text-center md:pt-32">
-          <div className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-indigo-400/20 bg-indigo-500/10 px-4 py-2 text-sm text-indigo-300">
+          <div className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-4 py-2 text-sm text-blue-300">
             <Sparkles size={16} />
             AI-powered learning & knowledge
           </div>
 
           <h1 className="mx-auto max-w-4xl text-5xl font-bold leading-tight tracking-tight md:text-7xl">
             Turn your documents into
-            <span className="text-indigo-400"> intelligent knowledge</span>
+            <span className="text-blue-400"> intelligent knowledge</span>
           </h1>
 
           <p className="mx-auto mt-7 max-w-2xl text-lg leading-8 text-slate-400">
@@ -94,7 +94,7 @@ const LandingPage: React.FC = () => {
           <div className="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
             <button
               onClick={() => navigate("/signup")}
-              className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-7 py-3.5 font-semibold transition hover:bg-indigo-500"
+              className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-7 py-3.5 font-semibold transition hover:bg-blue-500 shadow-lg shadow-blue-600/25"
             >
               Start Learning
               <ArrowRight size={18} />
@@ -110,7 +110,7 @@ const LandingPage: React.FC = () => {
 
           {/* Product Preview */}
           <div className="mx-auto mt-20 max-w-5xl">
-            <div className="rounded-2xl border border-white/10 bg-slate-900 p-2 shadow-2xl shadow-indigo-950/50">
+            <div className="rounded-2xl border border-white/10 bg-slate-900 p-2 shadow-2xl shadow-blue-950/50">
               <div className="rounded-xl border border-white/5 bg-slate-950 p-8">
                 <div className="mb-6 flex items-center gap-3">
                   <div className="h-3 w-3 rounded-full bg-red-400" />
@@ -120,7 +120,7 @@ const LandingPage: React.FC = () => {
 
                 <div className="grid gap-5 md:grid-cols-3">
                   <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-                    <FileText className="mb-4 text-indigo-400" />
+                    <FileText className="mb-4 text-blue-400" />
                     <h3 className="font-semibold">Documents</h3>
                     <p className="mt-2 text-sm text-slate-500">
                       Upload and process your learning material.
@@ -128,7 +128,7 @@ const LandingPage: React.FC = () => {
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-                    <MessageSquare className="mb-4 text-indigo-400" />
+                    <MessageSquare className="mb-4 text-blue-400" />
                     <h3 className="font-semibold">AI Chat</h3>
                     <p className="mt-2 text-sm text-slate-500">
                       Ask questions about your documents.
@@ -136,7 +136,7 @@ const LandingPage: React.FC = () => {
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-                    <ScanEye className="mb-4 text-indigo-400" />
+                    <ScanEye className="mb-4 text-blue-400" />
                     <h3 className="font-semibold">Multimodal AI</h3>
                     <p className="mt-2 text-sm text-slate-500">
                       Understand text, images and more.
@@ -153,7 +153,7 @@ const LandingPage: React.FC = () => {
       <section id="features" className="border-t border-white/10 py-24">
         <div className="mx-auto max-w-7xl px-6">
           <div className="mx-auto max-w-2xl text-center">
-            <p className="font-semibold text-indigo-400">FEATURES</p>
+            <p className="font-semibold text-blue-400">FEATURES</p>
 
             <h2 className="mt-3 text-3xl font-bold md:text-4xl">
               Everything you need to learn smarter
@@ -194,7 +194,7 @@ const LandingPage: React.FC = () => {
       >
         <div className="mx-auto max-w-7xl px-6">
           <div className="text-center">
-            <p className="font-semibold text-indigo-400">HOW IT WORKS</p>
+            <p className="font-semibold text-blue-400">HOW IT WORKS</p>
 
             <h2 className="mt-3 text-3xl font-bold md:text-4xl">
               From document to understanding
@@ -237,7 +237,7 @@ const LandingPage: React.FC = () => {
 
           <button
             onClick={() => navigate("/signup")}
-            className="mt-8 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-7 py-3.5 font-semibold hover:bg-indigo-500"
+            className="mt-8 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-7 py-3.5 font-semibold hover:bg-blue-500 shadow-lg shadow-blue-600/25 transition"
           >
             Create Free Account
             <ArrowRight size={18} />
@@ -269,8 +269,8 @@ const FeatureCard: React.FC<FeatureCardProps> = ({
   description,
 }) => {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-7 transition hover:border-indigo-500/30 hover:bg-white/[0.05]">
-      <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-7 transition hover:border-blue-500/30 hover:bg-white/[0.05]">
+      <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400">
         {icon}
       </div>
 
@@ -290,7 +290,7 @@ interface StepProps {
 const Step: React.FC<StepProps> = ({ number, title, description }) => {
   return (
     <div className="text-center">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 font-bold">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 font-bold shadow-md shadow-blue-600/30">
         {number}
       </div>
 

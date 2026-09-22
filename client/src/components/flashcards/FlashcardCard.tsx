@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { RotateCw, Sparkles, BookOpen, Check, ThumbsUp, AlertCircle } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { RotateCw, Sparkles, BookOpen, Check, ThumbsUp, AlertCircle, Volume2, VolumeX } from 'lucide-react';
 import { Flashcard, FlashcardConfidence } from '../../types/flashcard';
 import { useApp } from '../../context/AppContext';
+import { multimodalVisionService } from '../../services/multimodalVisionService';
 
 interface FlashcardCardProps {
   card: Flashcard;
@@ -26,13 +27,53 @@ export const FlashcardCard: React.FC<FlashcardCardProps> = ({
 }) => {
   const { openDocumentViewer } = useApp();
   const [isFlipped, setIsFlipped] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const ttsStopRef = useRef<(() => void) | null>(null);
+
+  const stopAudio = () => {
+    if (ttsStopRef.current) {
+      ttsStopRef.current();
+      ttsStopRef.current = null;
+    }
+    setIsSpeaking(false);
+  };
+
+  useEffect(() => {
+    stopAudio();
+    setIsFlipped(false);
+  }, [card.id]);
+
+  useEffect(() => {
+    return () => {
+      stopAudio();
+    };
+  }, []);
 
   const handleFlip = () => {
+    stopAudio();
     setIsFlipped(!isFlipped);
+  };
+
+  const handleToggleAudio = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isSpeaking) {
+      stopAudio();
+      return;
+    }
+
+    const textToRead = isFlipped ? card.back : card.front;
+    const controller = multimodalVisionService.speakText(
+      textToRead,
+      () => setIsSpeaking(true),
+      () => setIsSpeaking(false),
+      () => setIsSpeaking(false)
+    );
+    ttsStopRef.current = controller.stop;
   };
 
   const handleRate = (confidence: FlashcardConfidence, e: React.MouseEvent) => {
     e.stopPropagation();
+    stopAudio();
     onRateConfidence(confidence);
     setIsFlipped(false);
   };
@@ -95,33 +136,81 @@ export const FlashcardCard: React.FC<FlashcardCardProps> = ({
           e.currentTarget.style.boxShadow = 'var(--shadow-md)';
         }}
       >
-        {/* Card Side Pill */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span
-            className="badge badge-neutral"
-            style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}
-          >
-            {isFlipped ? 'Answer / Solution' : 'Prompt / Question'}
-          </span>
+        {/* Card Side Pill & Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span
+              className={`badge ${isFlipped ? 'badge-primary' : 'badge-neutral'}`}
+              style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+            >
+              {isFlipped ? 'Answer & Core Points' : 'Recall Question'}
+            </span>
+
+            {/* Read Aloud Button */}
+            <button
+              type="button"
+              onClick={handleToggleAudio}
+              className={`btn ${isSpeaking ? 'btn-danger' : 'btn-ghost'} btn-sm`}
+              style={{ padding: '2px 8px', fontSize: '0.7rem', gap: '4px', height: '24px' }}
+              title={isSpeaking ? 'Stop audio' : 'Listen to card out loud'}
+            >
+              {isSpeaking ? (
+                <>
+                  <VolumeX size={12} className="animate-pulse" />
+                  <span>Stop</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 size={12} color="var(--accent-primary)" />
+                  <span>Listen</span>
+                </>
+              )}
+            </button>
+          </div>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.725rem', color: 'var(--text-tertiary)' }}>
             <RotateCw size={12} />
             <span>Click to flip</span>
           </div>
         </div>
 
-        {/* Card Text Content */}
-        <div style={{ margin: 'auto 0', padding: '16px 0', textAlign: 'center' }}>
-          <h3
-            style={{
-              fontSize: isFlipped ? '1.05rem' : '1.25rem',
-              fontWeight: 600,
-              color: 'var(--text-primary)',
-              lineHeight: 1.5,
-              whiteSpace: 'pre-line'
-            }}
-          >
-            {isFlipped ? card.back : card.front}
-          </h3>
+        {/* Card Text Content (Dynamic Layout for High-Detail Answers) */}
+        <div
+          style={{
+            margin: 'auto 0',
+            padding: '14px 4px',
+            textAlign: isFlipped ? 'left' : 'center',
+            maxHeight: '400px',
+            overflowY: 'auto'
+          }}
+        >
+          {isFlipped ? (
+            <div
+              style={{
+                fontSize: '0.9rem',
+                color: 'var(--text-primary)',
+                lineHeight: 1.65,
+                whiteSpace: 'pre-wrap',
+                fontWeight: 450,
+                fontFamily: 'var(--font-sans)',
+                letterSpacing: '-0.005em'
+              }}
+            >
+              {card.back}
+            </div>
+          ) : (
+            <h3
+              style={{
+                fontSize: '1.25rem',
+                fontWeight: 650,
+                color: 'var(--text-primary)',
+                lineHeight: 1.45,
+                whiteSpace: 'pre-line'
+              }}
+            >
+              {card.front}
+            </h3>
+          )}
         </div>
 
         {/* Footer Meta / Citations */}

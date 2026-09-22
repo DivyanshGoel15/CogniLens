@@ -168,7 +168,7 @@ export const AITutorScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const messageListContainerRef = useRef<HTMLDivElement>(null);
   const isUserSendingRef = useRef(false);
-  const lastSignalRef = useRef<number>(newStudySessionSignal);
+  const lastSignalRef = useRef<number>(0);
 
   // Persist sessions whenever they change
   useEffect(() => {
@@ -181,7 +181,7 @@ export const AITutorScreen: React.FC = () => {
 
   // Handle + New Study Session trigger from AppContext / Sidebar
   useEffect(() => {
-    if (newStudySessionSignal && newStudySessionSignal !== lastSignalRef.current) {
+    if (newStudySessionSignal > 0 && newStudySessionSignal !== lastSignalRef.current) {
       lastSignalRef.current = newStudySessionSignal;
       handleNewSession();
     }
@@ -202,15 +202,18 @@ export const AITutorScreen: React.FC = () => {
   }, [activeSessionId]);
 
   const handleNewSession = () => {
-    const newSess: ConversationSessionItem = {
-      id: `sess-${Date.now()}`,
-      title: `Study Session #${sessions.length + 1}`,
-      courseTag: 'General',
-      updatedAt: 'Just now',
-      messages: [...INITIAL_CONVERSATION_MESSAGES]
-    };
-    setSessions(prev => [newSess, ...prev]);
-    setActiveSessionId(newSess.id);
+    const newId = `sess-${Date.now()}`;
+    setSessions(prev => {
+      const newSess: ConversationSessionItem = {
+        id: newId,
+        title: `Study Session #${prev.length + 1}`,
+        courseTag: 'General',
+        updatedAt: 'Just now',
+        messages: [...INITIAL_CONVERSATION_MESSAGES]
+      };
+      return [newSess, ...prev];
+    });
+    setActiveSessionId(newId);
   };
 
   const handleDeleteSession = (id: string, e: React.MouseEvent) => {

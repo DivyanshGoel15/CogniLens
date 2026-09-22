@@ -77,29 +77,29 @@ const SignUp: React.FC = () => {
       <div className="grid min-h-screen lg:grid-cols-2">
         {/* Left section */}
         <div className="relative hidden overflow-hidden bg-slate-900 lg:flex">
-          <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-indigo-600/30 blur-3xl" />
+          <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-blue-600/30 blur-3xl" />
 
-          <div className="absolute -bottom-32 -right-32 h-96 w-96 rounded-full bg-purple-600/20 blur-3xl" />
+          <div className="absolute -bottom-32 -right-32 h-96 w-96 rounded-full bg-blue-500/20 blur-3xl" />
 
           <div className="relative z-10 flex flex-col justify-between p-12">
             <Link to="/" className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 shadow-md shadow-blue-600/30">
                 <Brain size={23} />
               </div>
 
               <span className="text-xl font-bold">
-                Cogni<span className="text-indigo-400">Lens</span>
+                Cogni<span className="text-blue-400">Lens</span>
               </span>
             </Link>
 
             <div className="max-w-lg">
-              <p className="mb-4 text-sm font-semibold uppercase tracking-wider text-indigo-400">
+              <p className="mb-4 text-sm font-semibold uppercase tracking-wider text-blue-400">
                 Welcome to CogniLens
               </p>
 
               <h1 className="text-5xl font-bold leading-tight">
                 Learn from your
-                <span className="text-indigo-400"> knowledge.</span>
+                <span className="text-blue-400"> knowledge.</span>
               </h1>
 
               <p className="mt-6 text-lg leading-8 text-slate-400">
@@ -135,12 +135,12 @@ const SignUp: React.FC = () => {
             {/* Mobile logo */}
             <div className="mb-8 lg:hidden">
               <Link to="/" className="flex items-center gap-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600">
                   <Brain size={22} />
                 </div>
 
                 <span className="text-xl font-bold">
-                  Cogni<span className="text-indigo-400">Lens</span>
+                  Cogni<span className="text-blue-400">Lens</span>
                 </span>
               </Link>
             </div>
@@ -170,7 +170,7 @@ const SignUp: React.FC = () => {
                     value={formData.name}
                     onChange={handleChange}
                     placeholder="Your name"
-                    className="w-full rounded-xl border border-white/10 bg-white/5 py-3.5 pl-11 pr-4 outline-none transition placeholder:text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 py-3.5 pl-11 pr-4 outline-none transition placeholder:text-slate-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                   />
                 </div>
               </div>
@@ -193,7 +193,7 @@ const SignUp: React.FC = () => {
                     value={formData.email}
                     onChange={handleChange}
                     placeholder="you@example.com"
-                    className="w-full rounded-xl border border-white/10 bg-white/5 py-3.5 pl-11 pr-4 outline-none transition placeholder:text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 py-3.5 pl-11 pr-4 outline-none transition placeholder:text-slate-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                   />
                 </div>
               </div>
@@ -216,7 +216,7 @@ const SignUp: React.FC = () => {
                     value={formData.password}
                     onChange={handleChange}
                     placeholder="At least 8 characters"
-                    className="w-full rounded-xl border border-white/10 bg-white/5 py-3.5 pl-11 pr-12 outline-none transition placeholder:text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 py-3.5 pl-11 pr-12 outline-none transition placeholder:text-slate-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                   />
 
                   <button
@@ -251,7 +251,7 @@ const SignUp: React.FC = () => {
                     value={formData.confirmPassword}
                     onChange={handleChange}
                     placeholder="Confirm your password"
-                    className="w-full rounded-xl border border-white/10 bg-white/5 py-3.5 pl-11 pr-12 outline-none transition placeholder:text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 py-3.5 pl-11 pr-12 outline-none transition placeholder:text-slate-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                   />
 
                   <button
@@ -280,7 +280,7 @@ const SignUp: React.FC = () => {
                 <input
                   type="checkbox"
                   required
-                  className="mt-1 h-4 w-4 accent-indigo-600"
+                  className="mt-1 h-4 w-4 accent-blue-600"
                 />
 
                 <span>
@@ -290,7 +290,7 @@ const SignUp: React.FC = () => {
 
               <button
                 type="submit"
-                className="w-full rounded-xl bg-indigo-600 py-3.5 font-semibold transition hover:bg-indigo-500"
+                className="w-full rounded-xl bg-blue-600 py-3.5 font-semibold transition hover:bg-blue-500 shadow-lg shadow-blue-600/25"
               >
                 Create Account
               </button>
@@ -300,7 +300,7 @@ const SignUp: React.FC = () => {
               Already have an account?{" "}
               <Link
                 to="/signin"
-                className="font-semibold text-indigo-400 hover:text-indigo-300"
+                className="font-semibold text-blue-400 hover:text-blue-300"
               >
                 Sign in
               </Link>
@@ -315,7 +315,7 @@ const SignUp: React.FC = () => {
 const Benefit: React.FC<{ text: string }> = ({ text }) => {
   return (
     <div className="flex items-center gap-3 text-slate-300">
-      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-400">
+      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/10 text-blue-400">
         <Check size={14} />
       </div>
 

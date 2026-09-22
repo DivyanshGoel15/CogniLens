@@ -58,6 +58,9 @@ interface AppContextType {
   recordDailyActivity: (label?: string) => void;
   newStudySessionSignal: number;
   startNewStudySession: () => void;
+  routeHistory: AppRoute[];
+  canGoBack: boolean;
+  goBack: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -73,9 +76,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return false; // Default to false — new users must sign in via Landing → SignIn
   });
 
-  const [currentRoute, setCurrentRoute] = useState<AppRoute>(() => {
+  const [currentRoute, setCurrentRouteState] = useState<AppRoute>(() => {
     return isAuthenticated ? 'dashboard' : 'landing';
   });
+
+  const [routeHistory, setRouteHistory] = useState<AppRoute[]>([]);
+
+  const setCurrentRoute = (route: AppRoute | ((prev: AppRoute) => AppRoute)) => {
+    setCurrentRouteState(prev => {
+      const next = typeof route === 'function' ? route(prev) : route;
+      if (next !== prev) {
+        setRouteHistory(h => [...h, prev]);
+      }
+      return next;
+    });
+  };
+
+  const goBack = () => {
+    if (routeHistory.length > 0) {
+      const prev = routeHistory[routeHistory.length - 1];
+      setRouteHistory(h => h.slice(0, -1));
+      setCurrentRouteState(prev);
+    } else if (currentRoute !== 'dashboard') {
+      setCurrentRouteState('dashboard');
+    } else if (window.history.length > 1) {
+      window.history.back();
+    }
+  };
+
+  const canGoBack = routeHistory.length > 0 || currentRoute !== 'dashboard';
 
   const login = (email: string, name?: string) => {
     setIsAuthenticated(true);
@@ -238,7 +267,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const startQuiz = (config: QuizConfig) => {
-    setActiveQuizConfig(config);
+    setActiveQuizConfig({ ...config, timestamp: Date.now() });
     setCurrentRoute('quiz');
   };
 
@@ -291,7 +320,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         refreshProgress,
         recordDailyActivity,
         newStudySessionSignal,
-        startNewStudySession
+        startNewStudySession,
+        routeHistory,
+        canGoBack,
+        goBack
       }}
     >
       {children}
