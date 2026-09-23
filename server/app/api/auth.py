@@ -1,5 +1,6 @@
 """FastAPI router for User Authentication, Profiles, and SMTP Password Reset."""
 
+import os
 import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -13,6 +14,7 @@ from server.app.core.security import (
     hash_password,
     verify_password,
     create_access_token,
+    create_refresh_token,
     decode_access_token,
     generate_reset_code,
     send_password_reset_email,
@@ -51,6 +53,10 @@ class ResetPasswordRequest(BaseModel):
     newPassword: str
 
 
+class RefreshTokenRequest(BaseModel):
+    refresh_token: Optional[str] = None
+
+
 class UserProfileSchema(BaseModel):
     id: str
     email: str
@@ -65,8 +71,16 @@ class UserProfileSchema(BaseModel):
 
 class AuthResponse(BaseModel):
     access_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
     user: UserProfileSchema
+
+
+class TokenVerifyResponse(BaseModel):
+    valid: bool
+    user: UserProfileSchema
+    token_type: str = "bearer"
+    expires_at: Optional[int] = None
 
 
 class MessageResponse(BaseModel):
@@ -142,9 +156,11 @@ def signup(req: SignUpRequest, db: Session = Depends(get_db)):
         academic_year=req.academicYear or "Year 3",
     )
 
-    token = create_access_token({"sub": user.id, "email": user.email})
+    access_token = create_access_token({"sub": user.id, "email": user.email})
+    refresh_token = create_refresh_token({"sub": user.id, "email": user.email})
     return AuthResponse(
-        access_token=token,
+        access_token=access_token,
+        refresh_token=refresh_token,
         user=UserProfileSchema(
             id=user.id,
             email=user.email,
@@ -168,9 +184,76 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
             detail="Invalid email or password. Please check your credentials.",
         )
 
-    token = create_access_token({"sub": user.id, "email": user.email})
+    access_token = create_access_token({"sub": user.id, "email": user.email})
+    refresh_token = create_refresh_token({"sub": user.id, "email": user.email})
     return AuthResponse(
-        access_token=token,
+        access_token=access_token,
+        refresh_token=refresh_token,
+        user=UserProfileSchema(
+            id=user.id,
+            email=user.email,
+            fullName=user.full_name,
+            major=user.major,
+            academicYear=user.academic_year,
+            avatarInitials=user.avatar_initials,
+            avatarBgColor=user.avatar_bg_color,
+        ),
+    )
+
+
+@router.get("/verify", response_model=TokenVerifyResponse)
+def verify_token_endpoint(
+    auth: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
+    user: UserModel = Depends(get_current_user),
+):
+    """Verify that current JWT bearer token is valid, unexpired, and returns user identity."""
+    payload = decode_access_token(auth.credentials) if auth else None
+    exp = payload.get("exp") if payload else None
+    return TokenVerifyResponse(
+        valid=True,
+        user=UserProfileSchema(
+            id=user.id,
+            email=user.email,
+            fullName=user.full_name,
+            major=user.major,
+            academicYear=user.academic_year,
+            avatarInitials=user.avatar_initials,
+            avatarBgColor=user.avatar_bg_color,
+        ),
+        expires_at=exp,
+    )
+
+
+@router.post("/refresh", response_model=AuthResponse)
+def refresh_token_endpoint(
+    req: Optional[RefreshTokenRequest] = None,
+    auth: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
+    db: Session = Depends(get_db),
+):
+    """Exchange an existing valid access or refresh token for newly signed JWT tokens."""
+    raw_token = (req.refresh_token if req and req.refresh_token else None) or (auth.credentials if auth else None)
+    if not raw_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="JWT token is required for refresh.",
+        )
+    payload = decode_access_token(raw_token)
+    if not payload or "sub" not in payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired JWT token for refresh.",
+        )
+    user = repository.get_user_by_id(db, payload["sub"])
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User associated with this token no longer exists.",
+        )
+    new_access_token = create_access_token({"sub": user.id, "email": user.email})
+    new_refresh_token = create_refresh_token({"sub": user.id, "email": user.email})
+    return AuthResponse(
+        access_token=new_access_token,
+        refresh_token=new_refresh_token,
         user=UserProfileSchema(
             id=user.id,
             email=user.email,
@@ -243,17 +326,23 @@ def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
     repository.set_password_reset_code(db, clean_email, code, expires_in_minutes=15)
 
     # Deliver via Brevo SMTP
-    sent = send_password_reset_email(to_email=clean_email, reset_code=code, user_name=user.full_name)
+    sent, error_msg = send_password_reset_email(to_email=clean_email, reset_code=code, user_name=user.full_name)
 
-    if sent:
-        msg = f"A 6-digit verification code has been dispatched to {clean_email} via Brevo SMTP."
-    else:
-        msg = f"Verification code generated (check terminal log). SMTP dispatch was simulated or pending."
+    if not sent:
+        logger.error("Failed to send password reset code to %s: %s", clean_email, error_msg)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to deliver verification code via SMTP: {error_msg}. Please verify your SMTP settings in .env.",
+        )
+
+    # In production, do not leak verification code in response.
+    # Expose dev_code only in explicit automated testing environments.
+    is_testing = os.getenv("TESTING", "").lower() in ("true", "1", "yes")
 
     return MessageResponse(
         success=True,
-        message=msg,
-        dev_code=code,  # Provided for immediate testing & terminal verification
+        message=f"A 6-digit verification code has been dispatched to {clean_email} via Brevo SMTP. Please check your inbox and spam/junk folder.",
+        dev_code=code if is_testing else None,
     )
 
 

@@ -4,10 +4,11 @@ import os
 import secrets
 import hashlib
 import smtplib
+import email.utils
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 import logging
 import jwt
 from dotenv import load_dotenv
@@ -16,8 +17,9 @@ load_dotenv()
 logger = logging.getLogger("cognilens.security")
 
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "cognilens_default_jwt_secret_dev_key_2026")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_DAYS = 30
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_DAYS = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_DAYS", "30"))
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "60"))
 
 
 # ---------------------------------------------------------------------------
@@ -58,7 +60,16 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
     """Create a signed JWT access token for user authentication."""
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS))
-    to_encode.update({"exp": expire, "iat": datetime.utcnow()})
+    to_encode.update({"exp": expire, "iat": datetime.utcnow(), "type": "access"})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+
+def create_refresh_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+    """Create a long-lived JWT refresh token."""
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
+    to_encode.update({"exp": expire, "iat": datetime.utcnow(), "type": "refresh"})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -68,8 +79,11 @@ def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
-    except jwt.PyJWTError as exc:
-        logger.debug("JWT decode failure: %s", exc)
+    except jwt.ExpiredSignatureError:
+        logger.debug("JWT token has expired.")
+        return None
+    except jwt.InvalidTokenError as exc:
+        logger.debug("Invalid JWT token: %s", exc)
         return None
 
 
@@ -84,30 +98,36 @@ def generate_reset_code() -> str:
 # ---------------------------------------------------------------------------
 # SMTP Email Sending for Forgot Password
 # ---------------------------------------------------------------------------
-def send_password_reset_email(to_email: str, reset_code: str, user_name: str = "Learner") -> bool:
+def send_password_reset_email(to_email: str, reset_code: str, user_name: str = "Learner") -> Tuple[bool, Optional[str]]:
     """Send a password reset email with the 6-digit verification code via SMTP.
     
     Reads SMTP credentials from .env (Brevo / Sendinblue / Custom SMTP).
+    Returns (success: bool, error_message: Optional[str]).
     """
-    smtp_host = os.getenv("SMTP_HOST", "smtp-relay.brevo.com")
+    smtp_host = os.getenv("SMTP_HOST", "smtp-relay.brevo.com").strip()
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
-    smtp_user = os.getenv("SMTP_USER", "")
-    smtp_password = os.getenv("SMTP_PASSWORD", "")
-    smtp_from = os.getenv("SMTP_FROM_EMAIL", smtp_user or "support@cognilens.ai")
+    smtp_user = os.getenv("SMTP_USER", "").strip()
+    smtp_password = os.getenv("SMTP_PASSWORD", "").strip()
+    smtp_from = os.getenv("SMTP_FROM_EMAIL", "").strip()
+    if not smtp_from or smtp_from.endswith("@smtp-brevo.com"):
+        smtp_from = "divyansh2005goel@gmail.com"
 
-    # Always log reset code to console for developer / test visibility
-    logger.info("=== PASSWORD RESET CODE FOR %s: [%s] ===", to_email, reset_code)
+    # Log to server console for monitoring
+    logger.info("=== DISPATCHING PASSWORD RESET CODE VIA BREVO SMTP TO %s: [%s] (from: %s) ===", to_email, reset_code, smtp_from)
 
     if not smtp_user or not smtp_password:
-        logger.warning(
-            "SMTP credentials not fully configured in .env. Reset code logged to server console above."
-        )
-        return False
+        err_msg = "SMTP credentials (SMTP_USER or SMTP_PASSWORD) are not configured in .env."
+        logger.warning(err_msg)
+        return False, err_msg
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"CogniLens — Password Reset Code: {reset_code}"
     msg["From"] = f"CogniLens AI <{smtp_from}>"
     msg["To"] = to_email
+    msg["Reply-To"] = smtp_from
+    msg["Date"] = email.utils.formatdate(localtime=True)
+    msg["Message-ID"] = email.utils.make_msgid(domain="cognilens.ai")
+    msg["X-Mailer"] = "CogniLens-Auth-Mailer"
 
     plain_text = f"""Hello {user_name},
 
@@ -164,16 +184,39 @@ The CogniLens Team
     msg.attach(MIMEText(plain_text, "plain"))
     msg.attach(MIMEText(html_content, "html"))
 
+    last_error = None
+
+    # Attempt 1: Primary configured port
     try:
-        server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
-        use_tls = os.getenv("SMTP_TLS", "true").lower() in ("true", "1", "yes")
-        if use_tls:
+        if smtp_port == 465:
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=12)
+        else:
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=12)
+            use_tls = os.getenv("SMTP_TLS", "true").lower() in ("true", "1", "yes")
+            if use_tls:
+                server.starttls()
+        server.login(smtp_user, smtp_password)
+        server.sendmail(smtp_from, [to_email], msg.as_string())
+        server.quit()
+        logger.info("Successfully sent password reset email via SMTP to %s (port %d)", to_email, smtp_port)
+        return True, None
+    except Exception as exc:
+        last_error = str(exc)
+        logger.warning("Primary SMTP attempt to %s failed on port %d: %s. Trying fallback port...", to_email, smtp_port, exc)
+
+    # Attempt 2: Fallback port (switch between 465 SSL and 587 STARTTLS)
+    fallback_port = 465 if smtp_port != 465 else 587
+    try:
+        if fallback_port == 465:
+            server = smtplib.SMTP_SSL(smtp_host, fallback_port, timeout=12)
+        else:
+            server = smtplib.SMTP(smtp_host, fallback_port, timeout=12)
             server.starttls()
         server.login(smtp_user, smtp_password)
         server.sendmail(smtp_from, [to_email], msg.as_string())
         server.quit()
-        logger.info("Successfully sent password reset email via SMTP to %s", to_email)
-        return True
-    except Exception as exc:
-        logger.exception("Failed to deliver reset email via SMTP to %s: %s", to_email, exc)
-        return False
+        logger.info("Successfully sent password reset email via SMTP fallback to %s (port %d)", to_email, fallback_port)
+        return True, None
+    except Exception as fallback_exc:
+        logger.exception("Failed to deliver reset email via SMTP fallback to %s on port %d: %s", to_email, fallback_port, fallback_exc)
+        return False, f"SMTP error on port {smtp_port}: {last_error}; on port {fallback_port}: {fallback_exc}"

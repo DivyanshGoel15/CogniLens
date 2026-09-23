@@ -61,9 +61,12 @@ export interface AuthUserProfile {
 
 export interface AuthResponse {
   access_token: string;
+  refresh_token?: string;
   token_type: string;
   user: AuthUserProfile;
 }
+
+const REFRESH_TOKEN_KEY = 'cognilens_refresh_token';
 
 class APIClient {
   private baseUrl: string;
@@ -78,13 +81,20 @@ class APIClient {
     }
   }
 
-  setToken(token: string | null) {
+  setToken(token: string | null, refreshToken?: string | null) {
     this.token = token;
     try {
       if (token) {
         localStorage.setItem(AUTH_TOKEN_KEY, token);
       } else {
         localStorage.removeItem(AUTH_TOKEN_KEY);
+      }
+      if (refreshToken !== undefined) {
+        if (refreshToken) {
+          localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+        } else {
+          localStorage.removeItem(REFRESH_TOKEN_KEY);
+        }
       }
     } catch (e) {
       console.warn('Failed saving token to localStorage', e);
@@ -150,7 +160,7 @@ class APIClient {
     }
 
     const authData: AuthResponse = await res.json();
-    this.setToken(authData.access_token);
+    this.setToken(authData.access_token, authData.refresh_token);
     return authData;
   }
 
@@ -167,8 +177,32 @@ class APIClient {
     }
 
     const authData: AuthResponse = await res.json();
-    this.setToken(authData.access_token);
+    this.setToken(authData.access_token, authData.refresh_token);
     return authData;
+  }
+
+  async verifyToken(): Promise<{ valid: boolean; user: AuthUserProfile; expires_at?: number }> {
+    const res = await fetch(`${this.baseUrl}/auth/verify`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    });
+
+    if (!res.ok) throw new Error('Token verification failed or expired.');
+    return await res.json();
+  }
+
+  async refreshToken(): Promise<AuthResponse> {
+    const refreshToken = localStorage.getItem('cognilens_refresh_token');
+    const res = await fetch(`${this.baseUrl}/auth/refresh`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+
+    if (!res.ok) throw new Error('Failed to refresh token.');
+    const data: AuthResponse = await res.json();
+    this.setToken(data.access_token, data.refresh_token);
+    return data;
   }
 
   async getProfile(): Promise<AuthUserProfile> {

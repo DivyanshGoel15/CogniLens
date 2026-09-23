@@ -4,9 +4,15 @@ import os
 import base64
 import logging
 from typing import Optional, List
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Response
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Response, Depends
+from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from dotenv import load_dotenv
+
+from server.app.database.connection import get_db
+from server.app.database import repository
+from server.app.api.auth import get_current_user_optional
+from server.app.models.user import UserModel
 
 load_dotenv()
 logger = logging.getLogger("cognilens.multimodal")
@@ -56,7 +62,11 @@ def get_multimodal_status():
 
 
 @router.post("/analyze-diagram", response_model=DiagramAnalysisResponse)
-async def analyze_diagram(request: AnalyzeDiagramRequest):
+async def analyze_diagram(
+    request: AnalyzeDiagramRequest,
+    user: Optional[UserModel] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
     """Analyze diagram or image using Azure Foundry or Gemini Vision."""
     gemini_key = os.getenv("GEMINI_API_KEY")
     foundry_endpoint = os.getenv("AZURE_FOUNDRY_ENDPOINT")
@@ -129,7 +139,7 @@ async def analyze_diagram(request: AnalyzeDiagramRequest):
                     data = res.json()
                     text = data["candidates"][0]["content"]["parts"][0]["text"]
                     parsed = json.loads(text)
-                    return DiagramAnalysisResponse(
+                    resp = DiagramAnalysisResponse(
                         title=parsed.get("title", request.topic or "Diagram Analysis"),
                         category=parsed.get("category", "General Academic"),
                         description=parsed.get("description", "Analyzed multimodal diagram"),
@@ -139,6 +149,18 @@ async def analyze_diagram(request: AnalyzeDiagramRequest):
                         implication=parsed.get("implication", "Visual concept integrated into CogniLens."),
                         extracted_text=parsed.get("extracted_text", ""),
                     )
+                    if user:
+                        try:
+                            repository.record_user_activity(
+                                db=db,
+                                user_id=user.id,
+                                title=f"Diagram Analysis: {resp.title}",
+                                activity_type="multimodal",
+                                result_snippet=resp.description[:120],
+                            )
+                        except Exception as log_exc:
+                            logger.debug("Failed logging diagram activity: %s", log_exc)
+                    return resp
         except Exception as e:
             logger.warning("Gemini vision analysis encountered error: %s", e)
 
@@ -161,7 +183,7 @@ async def analyze_diagram(request: AnalyzeDiagramRequest):
             try:
                 vs = VisionService()
                 raw_analysis = vs.analyze_image(tmp_path, prompt)
-                return DiagramAnalysisResponse(
+                resp = DiagramAnalysisResponse(
                     title=request.topic or "Custom Diagram Analysis",
                     category="Multimodal Vision",
                     description="Analyzed via Azure Foundry Vision.",
@@ -175,6 +197,18 @@ async def analyze_diagram(request: AnalyzeDiagramRequest):
                     implication="Analysis grounded in uploaded diagram.",
                     extracted_text=raw_analysis,
                 )
+                if user:
+                    try:
+                        repository.record_user_activity(
+                            db=db,
+                            user_id=user.id,
+                            title=f"Diagram Analysis: {resp.title}",
+                            activity_type="multimodal",
+                            result_snippet=resp.description[:120],
+                        )
+                    except Exception as log_exc:
+                        logger.debug("Failed logging diagram activity: %s", log_exc)
+                return resp
             finally:
                 Path(tmp_path).unlink(missing_ok=True)
         except Exception as e:
@@ -182,7 +216,7 @@ async def analyze_diagram(request: AnalyzeDiagramRequest):
 
     # 3. Fallback academic synthesizer
     topic_label = request.topic or "Visual Architecture & System Flow"
-    return DiagramAnalysisResponse(
+    fallback_resp = DiagramAnalysisResponse(
         title=f"Analysis of {topic_label}",
         category="Multimodal Visual Knowledge",
         description=f"Automated architectural decomposition and OCR for {topic_label}.",
@@ -200,6 +234,18 @@ async def analyze_diagram(request: AnalyzeDiagramRequest):
         implication=f"Mastering {topic_label} improves conceptual clarity for exams and system architecture.",
         extracted_text="Visual structure parsed and synthesized.",
     )
+    if user:
+        try:
+            repository.record_user_activity(
+                db=db,
+                user_id=user.id,
+                title=f"Diagram Analysis: {fallback_resp.title}",
+                activity_type="multimodal",
+                result_snippet=fallback_resp.description[:120],
+            )
+        except Exception as log_exc:
+            logger.debug("Failed logging diagram activity: %s", log_exc)
+    return fallback_resp
 
 
 @router.post("/speech-to-text")
