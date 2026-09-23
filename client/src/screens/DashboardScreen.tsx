@@ -29,6 +29,7 @@ export const DashboardScreen: React.FC = () => {
     openDocumentViewer,
     startQuiz,
     progress,
+    userProfile,
     startNewStudySession
   } = useApp();
 
@@ -39,9 +40,11 @@ export const DashboardScreen: React.FC = () => {
   };
 
   const handleCreateQuizQuick = () => {
+    const course = materials[0]?.course || 'General Studies';
+    const topic = materials[0]?.topics?.[0] || materials[0]?.title || 'Core Concepts';
     startQuiz({
-      course: 'Operating Systems',
-      topic: 'Deadlock',
+      course,
+      topic,
       questionCount: 5,
       difficulty: 'intermediate',
       questionType: 'all'
@@ -63,10 +66,10 @@ export const DashboardScreen: React.FC = () => {
       >
         <div>
           <span className="badge badge-primary" style={{ fontSize: '0.75rem', marginBottom: '6px' }}>
-            Term 1 • Academic Year 2026
+            Academic Workspace • 2026
           </span>
           <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-            Good morning, Student.
+            Good day, {userProfile?.fullName || 'Student'}.
           </h1>
           <p style={{ fontSize: '0.9375rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
             What would you like to learn today? Your multimodal study workspace is synchronized.
@@ -183,9 +186,9 @@ export const DashboardScreen: React.FC = () => {
           lastUpdated: 'Recently'
         } : null);
 
-        const topicsDone = progress ? progress.courses.reduce((acc, c) => acc + c.topicsCompleted, 0) : 30;
-        const topicsTotal = progress ? progress.courses.reduce((acc, c) => acc + c.totalTopics, 0) : 38;
-        const completionPct = progress?.overallMastery || 78;
+        const topicsDone = progress ? progress.courses.reduce((acc, c) => acc + c.topicsCompleted, 0) : 0;
+        const topicsTotal = progress ? progress.courses.reduce((acc, c) => acc + c.totalTopics, 0) : 0;
+        const completionPct = progress?.overallMastery || 0;
 
         return (
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', marginBottom: '28px' }}>
@@ -264,15 +267,15 @@ export const DashboardScreen: React.FC = () => {
 
             {/* Learning Progress Metrics (Specific to the active Continue Learning course/topic) */}
             {(() => {
-              const activeCourseName = lastItem?.course || 'Operating Systems';
-              const courseObj = progress?.courses.find(c => c.course === activeCourseName) || {
-                course: activeCourseName,
-                masteryPercentage: 74,
-                topicsCompleted: 6,
-                totalTopics: 8,
-                strongTopics: ['Process Synchronization', 'Semaphores', 'CPU Scheduling'],
-                weakTopics: ['Deadlock Detection'],
-                recentScore: 80
+              const activeCourseName = lastItem?.course || null;
+              const courseObj = (activeCourseName && progress?.courses.find(c => c.course === activeCourseName)) || {
+                course: activeCourseName || 'No course yet',
+                masteryPercentage: 0,
+                topicsCompleted: 0,
+                totalTopics: 0,
+                strongTopics: [],
+                weakTopics: [],
+                recentScore: 0
               };
 
               return (
@@ -338,7 +341,7 @@ export const DashboardScreen: React.FC = () => {
                         </div>
                         <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
                           {(() => {
-                            const count = progress?.currentStreakDays !== undefined ? progress.currentStreakDays : 6;
+                            const count = progress?.currentStreakDays ?? 0;
                             return `${count} ${count === 1 ? 'Day' : 'Days'}`;
                           })()}
                         </div>
@@ -396,11 +399,40 @@ export const DashboardScreen: React.FC = () => {
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-          {materials.slice(0, 4).map((mat) => (
-            <MaterialCard key={mat.id} material={mat} />
-          ))}
-        </div>
+        {materials.length === 0 ? (
+          <div
+            className="card"
+            style={{
+              padding: '36px 20px',
+              textAlign: 'center',
+              backgroundColor: 'var(--bg-surface-subtle)',
+              borderRadius: 'var(--radius-xl)',
+              border: '1.5px dashed var(--border-subtle)'
+            }}
+          >
+            <FileText size={32} color="var(--text-muted)" style={{ margin: '0 auto 10px' }} />
+            <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              No study materials uploaded yet
+            </h4>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '4px', marginBottom: '16px' }}>
+              Upload your textbook PDF, lecture notes, or diagrams to activate grounded AI Tutoring and quizzes.
+            </p>
+            <button
+              onClick={() => setIsUploadModalOpen(true)}
+              className="btn btn-primary btn-sm"
+              style={{ gap: '6px', margin: '0 auto' }}
+            >
+              <Upload size={14} />
+              <span>Upload Your First Material</span>
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+            {materials.slice(0, 4).map((mat) => (
+              <MaterialCard key={mat.id} material={mat} />
+            ))}
+          </div>
+        )}
       </div>
 
       {isUploadModalOpen && (

@@ -63,6 +63,16 @@ export const SettingsScreen: React.FC = () => {
   // Modal state
   const [showResetModal, setShowResetModal] = useState(false);
 
+  // Sync form state when userProfile updates (e.g. on login or refresh)
+  React.useEffect(() => {
+    if (userProfile.fullName) setFullName(userProfile.fullName);
+    if (userProfile.email) setEmail(userProfile.email);
+    if (userProfile.major) setMajor(userProfile.major);
+    if (userProfile.academicYear) setAcademicYear(userProfile.academicYear);
+    if (userProfile.bio) setBio(userProfile.bio);
+    if (userProfile.avatarBgColor) setAvatarBgColor(userProfile.avatarBgColor);
+  }, [userProfile]);
+
   const presetColors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#f43f5e', '#ec4899'];
 
   const getInitials = (name: string) => {
@@ -123,7 +133,7 @@ export const SettingsScreen: React.FC = () => {
     recordDailyActivity('Manual check-in from Settings');
     showToast(
       '🔥 Streak Recorded!',
-      `You've maintained a ${progress?.currentStreakDays || 1}-day active study streak!`,
+      `You've maintained a ${progress?.currentStreakDays ?? 0}-day active study streak!`,
       'success'
     );
   };
@@ -225,7 +235,7 @@ export const SettingsScreen: React.FC = () => {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              {fullName || 'Student Member'}
+              {fullName || 'User'}
             </h3>
             <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
               {email || 'student@cognilens.edu'}
@@ -269,7 +279,7 @@ export const SettingsScreen: React.FC = () => {
                 </div>
                 <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                   {(() => {
-                    const count = progress?.currentStreakDays !== undefined ? progress.currentStreakDays : 1;
+                    const count = progress?.currentStreakDays ?? 0;
                     return `${count} ${count === 1 ? 'Day' : 'Days'} Consecutive`;
                   })()}
                 </div>
@@ -453,7 +463,7 @@ export const SettingsScreen: React.FC = () => {
                 className="input-text"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                placeholder="e.g. Student Member"
+                placeholder="e.g. Alex Morgan"
                 required
               />
             </div>

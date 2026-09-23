@@ -295,7 +295,7 @@ export const Sidebar: React.FC = () => {
           {!isSidebarCollapsed && (
             <div style={{ overflow: 'hidden' }}>
               <div style={{ fontSize: '0.8125rem', color: '#ffffff', fontWeight: 600, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                {userProfile.fullName || 'Student Member'}
+                {userProfile.fullName || 'User'}
               </div>
               <div style={{ fontSize: '0.6875rem', color: 'var(--text-sidebar-muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
                 {userProfile.major} • {userProfile.academicYear}

@@ -35,24 +35,7 @@ export const DocumentViewerScreen: React.FC = () => {
     recordDocumentRead
   } = useApp();
 
-  const activeMaterial = selectedMaterial || materials[0] || {
-    id: 'mat-os-unit3',
-    title: 'OS — Unit 3 Deadlocks & Synchronization',
-    filename: 'OS_Unit3_Deadlocks.pdf',
-    type: 'pdf' as const,
-    pagesCount: 42,
-    size: '4.8 MB',
-    uploadDate: 'Sep 18, 2026',
-    status: 'indexed' as const,
-    course: 'Operating Systems' as const,
-    topics: ['Deadlock', 'Coffman Conditions', 'Resource Allocation Graph', 'Banker Algorithm'],
-    sections: [
-      { id: 's1', page: 1, title: 'Introduction to Deadlock & Concurrency', snippet: 'A deadlock occurs when a set of processes are blocked because each process is holding a resource...' },
-      { id: 's2', page: 18, title: 'Four Necessary Coffman Conditions', snippet: '1. Mutual Exclusion, 2. Hold and Wait, 3. No Preemption, 4. Circular Wait...' },
-      { id: 's3', page: 31, title: 'Banker\'s Safe State Algorithm', snippet: 'Dijkstra\'s Banker Algorithm simulates allocation for safety testing...' },
-      { id: 's4', page: 42, title: 'Resource Allocation Graph & Cycle Detection', snippet: 'Deadlock Detection in single-instance systems reduces to cycle detection in a directed RAG graph...' }
-    ]
-  };
+  const activeMaterial = selectedMaterial || materials[0] || null;
 
   const { showToast } = useToast();
   const [activePage, setActivePage] = useState<number>(selectedPage || 1);
@@ -88,16 +71,16 @@ export const DocumentViewerScreen: React.FC = () => {
     }
     setIsSpeaking(false);
     setActivePage(newPage);
-    recordDocumentRead(activeMaterial, newPage);
+    if (activeMaterial) recordDocumentRead(activeMaterial, newPage);
   };
 
   // Helper to extract spoken text for current page
   const getPageSpokenText = (): string => {
     const raw = getPageTextContent(activePage);
     if (raw) return raw;
-    const sec = activeMaterial.sections?.find(s => s.page === activePage);
+    const sec = activeMaterial?.sections?.find(s => s.page === activePage);
     if (sec) return `${sec.title}. ${sec.snippet}`;
-    return `${activeMaterial.title}, Page ${activePage}. Course: ${activeMaterial.course}. Topics: ${activeMaterial.topics.join(', ')}.`;
+    return `${activeMaterial?.title || 'Document'}, Page ${activePage}. Course: ${activeMaterial?.course || ''}. Topics: ${(activeMaterial?.topics || []).join(', ')}.`;
   };
 
   // Toggle Text-to-Speech narration
@@ -162,11 +145,11 @@ export const DocumentViewerScreen: React.FC = () => {
     });
   };
 
-  const totalPages = activeMaterial.pagesCount || 10;
+  const totalPages = activeMaterial?.pagesCount || 10;
   // Helper to extract text for the specific page
   // Helper to extract text for the specific page
   const getPageTextContent = (pageNum: number) => {
-    if (!activeMaterial.textContent) return null;
+    if (!activeMaterial?.textContent) return null;
     const pageMarker = `--- Page ${pageNum} ---`;
     const nextMarker = `--- Page ${pageNum + 1} ---`;
     if (activeMaterial.textContent.includes(pageMarker)) {
@@ -185,10 +168,10 @@ export const DocumentViewerScreen: React.FC = () => {
   // Helper to render dynamic, page-specific and course-specific academic text
   const renderDynamicPageContent = () => {
     const extractedText = getPageTextContent(activePage);
-    const topicCount = activeMaterial.topics.length || 1;
-    const mainTopic = activeMaterial.topics[(activePage - 1) % topicCount] || activeMaterial.course;
-    const subTopic = activeMaterial.topics[activePage % topicCount] || 'Advanced Analysis';
-    const exactSection = activeMaterial.sections?.find(s => s.page === activePage);
+    const topicCount = activeMaterial?.topics?.length || 1;
+    const mainTopic = activeMaterial?.topics?.[(activePage - 1) % topicCount] || activeMaterial?.course || 'Topic';
+    const subTopic = activeMaterial?.topics?.[activePage % topicCount] || 'Advanced Analysis';
+    const exactSection = activeMaterial?.sections?.find(s => s.page === activePage);
 
     if (extractedText) {
       return (
@@ -379,6 +362,21 @@ export const DocumentViewerScreen: React.FC = () => {
         );
     }
   };
+
+  if (!activeMaterial) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 'calc(100vh - 88px)', color: 'var(--text-secondary)', gap: '16px' }}>
+        <BookOpen size={48} style={{ opacity: 0.3 }} />
+        <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>No Document Selected</div>
+        <div style={{ fontSize: '0.875rem', textAlign: 'center', maxWidth: '320px' }}>
+          Upload a PDF in the Materials section, then open it here to start reading, summarizing, and quizzing.
+        </div>
+        <button className="btn btn-primary" onClick={() => setCurrentRoute('materials')}>
+          Go to Materials
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr 320px', height: 'calc(100vh - 88px)', overflow: 'hidden' }}>

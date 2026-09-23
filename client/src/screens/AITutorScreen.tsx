@@ -223,9 +223,9 @@ export const AITutorScreen: React.FC = () => {
     } catch (e) {
       console.warn('Failed to parse chat sessions from localStorage', e);
     }
-    return PRESET_SESSIONS;
+    return [];
   });
-  const [activeSessionId, setActiveSessionId] = useState<string>(() => sessions[0]?.id || PRESET_SESSIONS[0].id);
+  const [activeSessionId, setActiveSessionId] = useState<string>(() => sessions[0]?.id || '');
   const [isLoading, setIsLoading] = useState(false);
   const messageListContainerRef = useRef<HTMLDivElement>(null);
   const isUserSendingRef = useRef(false);

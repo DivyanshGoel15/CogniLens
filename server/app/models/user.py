@@ -13,7 +13,7 @@ class UserModel(Base):
     id = Column(String(64), primary_key=True, default=lambda: str(uuid.uuid4()))
     email = Column(String(255), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
-    full_name = Column(String(255), nullable=False, default="Student Member")
+    full_name = Column(String(255), nullable=False, default="Student")
     major = Column(String(255), nullable=False, default="Computer Science")
     academic_year = Column(String(64), nullable=False, default="Year 3")
     avatar_initials = Column(String(8), nullable=False, default="S")

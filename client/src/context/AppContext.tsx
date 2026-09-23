@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { MaterialSource } from '../types/material';
 import { materialService } from '../services/materialService';
 import { progressService } from '../services/progressService';
+import { flashcardService } from '../services/flashcardService';
+import { studyPlanService } from '../services/studyPlanService';
 import { apiClient } from '../services/apiClient';
 import { QuizConfig } from '../types/quiz';
 import { UserProfile, INITIAL_USER_PROFILE, LearningProgressState } from '../types/progress';
@@ -23,6 +25,30 @@ export type AppRoute =
 
 const USER_PROFILE_KEY = 'cognilens_user_profile';
 const AUTH_KEY = 'cognilens_is_authenticated';
+
+// Cache version — bump this to force-clear stale localStorage data across all clients
+const CACHE_VERSION = 'v2';
+const CACHE_VERSION_KEY = 'cognilens_cache_version';
+
+// Wipe stale localStorage data if user is on an old version (had mock data)
+try {
+  const storedVersion = localStorage.getItem(CACHE_VERSION_KEY);
+  if (storedVersion !== CACHE_VERSION) {
+    const keysToWipe = [
+      'cognilens_materials',
+      'cognilens_flashcards_v2',
+      'cognilens_progress',
+      'cognilens_study_plan',
+      'cognilens_chat_sessions',
+    ];
+    keysToWipe.forEach(k => localStorage.removeItem(k));
+    localStorage.setItem(CACHE_VERSION_KEY, CACHE_VERSION);
+    console.info('[CogniLens] Cache cleared — fresh start with clean data.');
+  }
+} catch (e) {
+  console.warn('Cache version check failed', e);
+}
+
 
 interface AppContextType {
   currentRoute: AppRoute;
@@ -120,13 +146,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (email) {
       updateUserProfile({
         email,
-        fullName: profile?.fullName || name || userProfile.fullName || 'Student Member',
+        fullName: profile?.fullName || name || userProfile.fullName || 'Student',
         major: profile?.major || userProfile.major || 'Computer Science',
-        academicYear: profile?.academicYear || userProfile.academicYear || 'Year 3',
+        academicYear: profile?.academicYear || userProfile.academicYear || 'Year 1',
         avatarInitials: (profile?.avatarInitials || name || userProfile.fullName || 'S').charAt(0).toUpperCase(),
         avatarBgColor: profile?.avatarBgColor || userProfile.avatarBgColor || '#3b82f6',
       });
     }
+    materialService.resetMaterials();
+    flashcardService.resetDecks();
+    progressService.resetProgress();
+    studyPlanService.resetPlan();
     await refreshMaterials();
     await refreshProgress();
     setCurrentRoute('dashboard');
@@ -146,10 +176,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       fullName: data.fullName,
       email: data.email,
       major: data.major || 'Computer Science',
-      academicYear: data.academicYear || 'Year 3',
+      academicYear: data.academicYear || 'Year 1',
       avatarInitials: data.fullName.charAt(0).toUpperCase(),
       avatarBgColor: data.profile?.avatarBgColor || '#3b82f6',
     });
+    materialService.resetMaterials();
+    flashcardService.resetDecks();
+    progressService.resetProgress();
+    studyPlanService.resetPlan();
     await refreshMaterials();
     await refreshProgress();
     setCurrentRoute('dashboard');
@@ -159,13 +193,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setIsAuthenticated(false);
     apiClient.setToken(null);
     materialService.resetMaterials();
+    flashcardService.resetDecks();
     progressService.resetProgress();
+    studyPlanService.resetPlan();
     setMaterials([]);
     setSelectedMaterial(null);
     setProgress(null);
     try {
       localStorage.setItem(AUTH_KEY, JSON.stringify(false));
       localStorage.removeItem(USER_PROFILE_KEY);
+      localStorage.removeItem('cognilens_materials');
+      localStorage.removeItem('cognilens_flashcards_v2');
+      localStorage.removeItem('cognilens_progress');
+      localStorage.removeItem('cognilens_study_plan');
     } catch (e) {
       console.warn('Failed to save auth state', e);
     }

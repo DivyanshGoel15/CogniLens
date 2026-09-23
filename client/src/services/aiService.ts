@@ -18,12 +18,11 @@ export const INITIAL_CONVERSATION_MESSAGES: ChatMessage[] = [
   {
     id: 'msg-welcome',
     role: 'assistant',
-    content: "Welcome to CogniLens AI Tutor. I'm powered by **Google Gemini** and grounded in your indexed study materials.\n\nYou can:\n- Ask conceptual questions about any topic\n- Attach PDFs or images for multimodal analysis\n- Request summaries, quizzes, or flashcards\n- Get explanations grounded in your course notes",
-    timestamp: '10:00 AM',
+    content: "Welcome to CogniLens AI Tutor. I'm powered by AI and grounded in your indexed study materials.\n\nYou can:\n- Ask conceptual questions about any topic\n- Attach PDFs or images for multimodal analysis\n- Request summaries, quizzes, or flashcards\n- Get explanations grounded in your course notes",
+    timestamp: 'Just now',
     suggestedActions: [
-      { id: 'act-1', label: 'Explain Deadlock from OS Notes', actionType: 'explain_further', payload: { query: 'Explain deadlock using my OS notes' } },
-      { id: 'act-2', label: 'Summarize ML Linear Regression', actionType: 'summarize', payload: { query: 'Summarize linear regression and cost functions' } },
-      { id: 'act-3', label: 'Create Quiz on DBMS Normalization', actionType: 'create_quiz', payload: { topic: 'DBMS Normalization', count: 5 } }
+      { id: 'act-1', label: 'Ask a Question about My Notes', actionType: 'explain_further', payload: { query: 'Summarize key concepts from my notes' } },
+      { id: 'act-2', label: 'Generate a Quick Diagnostic Quiz', actionType: 'create_quiz', payload: { topic: 'Core Concepts', count: 5 } }
     ]
   }
 ];

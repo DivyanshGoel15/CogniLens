@@ -26,7 +26,7 @@ export const LandingScreen: React.FC = () => {
   const [activeFeatureTab, setActiveFeatureTab] = useState<'tutor' | 'reader' | 'quiz' | 'streak'>('tutor');
 
   const handleDemoAccess = () => {
-    login('student@cognilens.edu', 'Student Member');
+    login('guest@cognilens.edu', 'Guest Explorer');
     setCurrentRoute('dashboard');
   };
 

@@ -2,138 +2,51 @@ import { StudyPlanItem, WeeklyStudyPlan } from '../types/studyPlan';
 import { ApiResponse } from './apiTypes';
 import { apiClient } from './apiClient';
 
-export const INITIAL_STUDY_PLAN: WeeklyStudyPlan = {
-  id: 'plan-week-38',
-  weekRange: 'Sep 21 – Sep 27, 2026',
-  targetFocus: 'Midterm Mastery: Operating Systems & Machine Learning Foundations',
-  totalStudyHoursPlanned: 5.5,
-  completedMinutes: 135,
-  items: [
-    {
-      id: 'plan-1',
-      day: 'Monday',
-      dateStr: 'Sep 21',
-      topic: 'Linear Regression & Cost Functions',
-      course: 'Machine Learning',
-      durationMinutes: 45,
-      activityType: 'read',
-      status: 'completed',
-      materialName: 'Machine Learning — Linear Regression.pdf',
-      aiRationale: 'Review cost function derivations and gradient descent step rules.'
-    },
-    {
-      id: 'plan-2',
-      day: 'Tuesday',
-      dateStr: 'Sep 22',
-      topic: 'Deadlock Detection & RAG Cycles',
-      course: 'Operating Systems',
-      durationMinutes: 60,
-      activityType: 'read',
-      status: 'completed',
-      materialName: 'OS — Unit 3 Deadlocks.pdf',
-      aiRationale: 'Critical topic: You flagged RAG cycle analysis for review.'
-    },
-    {
-      id: 'plan-3',
-      day: 'Wednesday',
-      dateStr: 'Sep 23',
-      topic: 'Practice Diagnostic Quiz (Deadlocks & ML)',
-      course: 'Operating Systems',
-      durationMinutes: 30,
-      activityType: 'practice_quiz',
-      status: 'in_progress',
-      aiRationale: 'Target 5-10 adaptive questions to gauge retention of Tuesday lecture notes.'
-    },
-    {
-      id: 'plan-4',
-      day: 'Thursday',
-      dateStr: 'Sep 24',
-      topic: 'DBMS Normalization & BCNF Decomposition',
-      course: 'DBMS',
-      durationMinutes: 45,
-      activityType: 'read',
-      status: 'pending',
-      materialName: 'DBMS — Normalization Notes.pdf',
-      aiRationale: 'Prepare functional dependency rules before Friday lab.'
-    },
-    {
-      id: 'plan-5',
-      day: 'Friday',
-      dateStr: 'Sep 25',
-      topic: 'Java Dynamic Method Dispatch & Polymorphism',
-      course: 'Java OOP',
-      durationMinutes: 40,
-      activityType: 'flashcard_review',
-      status: 'pending',
-      materialName: 'Java OOP Lecture 08.pdf',
-      aiRationale: 'Spaced repetition flashcards on vtable resolution.'
-    },
-    {
-      id: 'plan-6',
-      day: 'Saturday',
-      dateStr: 'Sep 26',
-      topic: 'TCP 3-Way Handshake & Flow Control',
-      course: 'Computer Networks',
-      durationMinutes: 50,
-      activityType: 'diagram_analysis',
-      status: 'pending',
-      materialName: 'Computer Networks — TCP/IP.pdf',
-      aiRationale: 'Visual analysis of SYN-ACK packet timelines and window sizing.'
-    },
-    {
-      id: 'plan-7',
-      day: 'Sunday',
-      dateStr: 'Sep 27',
-      topic: 'Weekly Weak-Area Remediation Review',
-      course: 'Operating Systems',
-      durationMinutes: 35,
-      activityType: 'practice_quiz',
-      status: 'pending',
-      aiRationale: 'AI synthesis of missed quiz concepts from the past 7 days.'
-    }
-  ]
-};
+export const INITIAL_STUDY_PLAN: WeeklyStudyPlan | null = null;
 
 class StudyPlanService {
-  private currentPlan: WeeklyStudyPlan = { ...INITIAL_STUDY_PLAN };
+  private currentPlan: WeeklyStudyPlan | null = null;
 
-  async getStudyPlan(): Promise<ApiResponse<WeeklyStudyPlan>> {
+  resetPlan() {
+    this.currentPlan = null;
+  }
+
+  async getStudyPlan(): Promise<ApiResponse<WeeklyStudyPlan | null>> {
     try {
-      const isOnline = await apiClient.isServerOnline();
-      if (isOnline) {
-        const backendPlan = await apiClient.getStudyPlan();
-        if (backendPlan && backendPlan.blocks && backendPlan.blocks.length > 0) {
-          const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-          this.currentPlan = {
-            id: backendPlan.id || `plan-${Date.now()}`,
-            weekRange: backendPlan.week_range || 'Next 7 Days',
-            targetFocus: backendPlan.title || 'Adaptive Exam Preparation',
-            totalStudyHoursPlanned: backendPlan.total_study_hours_planned || 5.0,
-            completedMinutes: backendPlan.completed_minutes || 0,
-            items: backendPlan.blocks.map((b: any, idx: number) => ({
-              id: b.id || `plan-item-${idx + 1}`,
-              day: days[idx % days.length],
-              dateStr: b.time_slot || `Day ${idx + 1}`,
-              topic: b.topic,
-              course: b.course,
-              durationMinutes: b.duration_min || 30,
-              activityType: (b.activity && b.activity.toLowerCase().includes('quiz') ? 'practice_quiz' :
-                             b.activity && b.activity.toLowerCase().includes('diagram') ? 'diagram_analysis' :
-                             b.activity && b.activity.toLowerCase().includes('flashcard') ? 'flashcard_review' : 'read') as any,
-              status: (b.status || 'pending') as any,
-              materialName: `${b.course} Notes`,
-              aiRationale: b.activity || 'Targeted concept retention'
-            }))
-          };
-        }
+      const backendPlan = await apiClient.getStudyPlan();
+      if (backendPlan && backendPlan.blocks && backendPlan.blocks.length > 0) {
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        this.currentPlan = {
+          id: backendPlan.id || `plan-${Date.now()}`,
+          weekRange: backendPlan.week_range || 'Next 7 Days',
+          targetFocus: backendPlan.title || 'Adaptive Exam Preparation',
+          totalStudyHoursPlanned: backendPlan.total_study_hours_planned || 5.0,
+          completedMinutes: backendPlan.completed_minutes || 0,
+          items: backendPlan.blocks.map((b: any, idx: number) => ({
+            id: b.id || `plan-item-${idx + 1}`,
+            day: days[idx % days.length],
+            dateStr: b.time_slot || `Day ${idx + 1}`,
+            topic: b.topic,
+            course: b.course,
+            durationMinutes: b.duration_min || 30,
+            activityType: (b.activity && b.activity.toLowerCase().includes('quiz') ? 'practice_quiz' :
+                           b.activity && b.activity.toLowerCase().includes('diagram') ? 'diagram_analysis' :
+                           b.activity && b.activity.toLowerCase().includes('flashcard') ? 'flashcard_review' : 'read') as any,
+            status: (b.status || 'pending') as any,
+            materialName: `${b.course} Notes`,
+            aiRationale: b.activity || 'Targeted concept retention'
+          }))
+        };
+      } else {
+        this.currentPlan = null;
       }
     } catch (e) {
-      console.warn('Backend study plan fetch failed, using cached plan', e);
+      console.warn('Backend study plan fetch failed', e);
     }
 
     return {
       success: true,
-      data: { ...this.currentPlan },
+      data: this.currentPlan,
       metadata: { latencyMs: 40 }
     };
   }

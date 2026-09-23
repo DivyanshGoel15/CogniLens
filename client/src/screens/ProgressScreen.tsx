@@ -23,7 +23,7 @@ export const ProgressScreen: React.FC = () => {
   // Dynamic calculations
   const overallMastery = courses.length > 0
     ? Math.round(courses.reduce((acc, c) => acc + c.masteryPercentage, 0) / courses.length)
-    : (progress?.overallMastery || 78);
+    : (progress?.overallMastery ?? 0);
 
   const totalTopicsCompleted = courses.reduce((acc, c) => acc + c.topicsCompleted, 0);
   const totalTopicsCount = courses.reduce((acc, c) => acc + c.totalTopics, 0);
@@ -33,7 +33,7 @@ export const ProgressScreen: React.FC = () => {
     ? [...courses].sort((a, b) => a.masteryPercentage - b.masteryPercentage)[0]
     : null;
 
-  const activeWeakTopic = lowestCourse?.weakTopics?.[0] || lowestCourse?.strongTopics?.[0] || 'Deadlock Detection';
+  const activeWeakTopic = lowestCourse?.weakTopics?.[0] || lowestCourse?.strongTopics?.[0] || null;
 
   const getTodayDateStr = () => {
     const d = new Date();
@@ -124,10 +124,10 @@ export const ProgressScreen: React.FC = () => {
             <span>Quiz Diagnostic Accuracy</span>
           </div>
           <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '6px' }}>
-            {progress?.quizAccuracy || 84}%
+            {progress?.quizAccuracy ?? 0}%
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--color-success)', marginTop: '8px', fontWeight: 600 }}>
-            {progress?.totalQuestionsAnswered || 48} total questions solved
+            {progress?.totalQuestionsAnswered ?? 0} total questions solved
           </div>
         </div>
 
@@ -138,7 +138,7 @@ export const ProgressScreen: React.FC = () => {
             <span>Active Study Hours</span>
           </div>
           <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '6px' }}>
-            {progress?.totalStudyHours || 14.5} hrs
+            {progress?.totalStudyHours ?? 0} hrs
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
             Tracked across {courses.length} courses
@@ -173,7 +173,7 @@ export const ProgressScreen: React.FC = () => {
 
           <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '6px' }}>
             {(() => {
-              const count = progress?.currentStreakDays !== undefined ? progress.currentStreakDays : 1;
+              const count = progress?.currentStreakDays ?? 0;
               return `${count} ${count === 1 ? 'Day' : 'Days'}`;
             })()}
           </div>
