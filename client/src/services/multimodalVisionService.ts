@@ -523,7 +523,13 @@ You must respond with ONLY a valid JSON object matching this exact structure:
     topic?: string,
     diagramType: string = 'flowchart',
     direction: string = 'TD'
-  ): Promise<{ mermaid_code: string; title: string; description: string }> {
+  ): Promise<{
+    mermaid_code: string;
+    title: string;
+    description: string;
+    simplified_explanation?: string;
+    key_takeaways?: string[];
+  }> {
     // 1. Try backend FastAPI endpoint first
     try {
       const res = await fetch('/api/multimodal/generate-diagram-from-text', {
@@ -544,26 +550,26 @@ You must respond with ONLY a valid JSON object matching this exact structure:
       console.warn('Backend generate-diagram not reachable:', e);
     }
 
-    // 2. Try Gemini directly from client with model fallbacks
+    // 2. Try Gemini directly from client with verified model
     const apiKey = getGeminiApiKey();
     if (apiKey) {
       const typePrompts: Record<string, string> = {
-        mindmap: 'Create a Mermaid native MIND MAP. Line 1 must be "mindmap", Line 2 must be "  root(( Topic ))". Indent 2 spaces. No brackets inside leaf nodes. Focus on real mechanisms and rules.',
-        sequence: 'Create a Mermaid SEQUENCE DIAGRAM (sequenceDiagram). Include autonumber, 3-4 specific participating actors, alt/else branches, and real action labels.',
-        stateDiagram: 'Create a Mermaid STATE MACHINE (stateDiagram-v2). Show lifecycle transitions from [*] with triggers.',
-        class: 'Create a Mermaid CLASS DIAGRAM (classDiagram). Model key entities, attributes, and relationships.',
-        flowchart: `Create a Mermaid FLOWCHART (flowchart ${direction}). Use subgraphs for phases, at least 1 decision diamond with Yes/No branches, and double quotes around labels.`
+        mindmap: 'Mermaid native MIND MAP. Line 1: "mindmap", Line 2: "  root(( Topic ))". 2-space indentation. No brackets inside leaf nodes. Explain real concepts, conditions, and actions.',
+        sequence: 'Mermaid SEQUENCE DIAGRAM (sequenceDiagram). Include autonumber, 3-4 specific participating components, alt/else branch, and concrete actions in message arrows.',
+        stateDiagram: 'Mermaid STATE MACHINE (stateDiagram-v2). Show lifecycle states from [*] to terminal states with real event triggers.',
+        class: 'Mermaid CLASS DIAGRAM (classDiagram). Model key entities with attributes and methods.',
+        flowchart: `Mermaid FLOWCHART (flowchart ${direction}). Every node MUST describe a concrete step, condition, or rule (e.g. A["Step Description"] --> B{"Decision?"}). Include Yes/No branches.`
       };
 
-      const systemText = `You are CogniLens Diagram Generator AI. Output ONLY valid JSON with keys: "mermaid_code", "title", "description". No markdown ticks inside mermaid_code. ${typePrompts[diagramType] || typePrompts.flowchart} CRITICAL: Do NOT use generic labels like "Core Definitions" or "Overview". Use specific technical terms from the text.`;
+      const systemText = `You are CogniLens Educational AI Tutor. Output ONLY valid JSON with keys: "mermaid_code", "title", "description", "simplified_explanation" (plain English explanation for someone who finds this concept difficult), "key_takeaways" (array of 3 strings). No markdown ticks inside mermaid_code. ${typePrompts[diagramType] || typePrompts.flowchart} CRITICAL: Every single node MUST contain real, educational facts about the topic. NEVER output generic roadmap placeholders like "Phase 1: Ingestion", "Step 1", "Overview", "Applications", "Deliver Result".`;
 
-      const modelsToTry = ['gemini-flash-latest', 'gemini-3.1-flash-lite'];
+      const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-flash-latest'];
       for (const model of modelsToTry) {
         try {
           const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`;
           const payload = {
             systemInstruction: { parts: [{ text: systemText }] },
-            contents: [{ role: 'user', parts: [{ text: `Create a topic-specific ${diagramType} diagram for "${topic || 'the concept'}".\n\nSource text:\n${textContent.slice(0, 6000)}` }] }],
+            contents: [{ role: 'user', parts: [{ text: `Topic: "${topic || 'the concept'}"\n\nStudy Material Context:\n${textContent.slice(0, 6000)}` }] }],
             generationConfig: { temperature: 0.25, responseMimeType: 'application/json' }
           };
           const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -577,7 +583,9 @@ You must respond with ONLY a valid JSON object matching this exact structure:
                 return {
                   mermaid_code: cleanCode,
                   title: parsed.title || `${diagramType.toUpperCase()}: ${topic || 'Concept'}`,
-                  description: parsed.description || `Visual breakdown of ${topic || 'the concept'}.`
+                  description: parsed.description || `Visual breakdown of ${topic || 'the concept'}.`,
+                  simplified_explanation: parsed.simplified_explanation,
+                  key_takeaways: parsed.key_takeaways
                 };
               }
             }

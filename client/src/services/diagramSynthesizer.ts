@@ -12,16 +12,18 @@ export interface SynthesizedDiagramResult {
   mermaid_code: string;
   title: string;
   description: string;
+  simplified_explanation?: string;
+  key_takeaways?: string[];
 }
 
 export function sanitizeMermaidLabel(text: string): string {
   const cleaned = text.replace(/"/g, "'").replace(/\n/g, ' ').trim();
-  return cleaned.length > 55 ? cleaned.slice(0, 55) : cleaned;
+  return cleaned.length > 65 ? cleaned.slice(0, 65) : cleaned;
 }
 
 export function sanitizeMindmapText(text: string): string {
   const cleaned = text.replace(/[()[\]{}"':]/g, '').trim();
-  return cleaned.length > 40 ? cleaned.slice(0, 40) : cleaned;
+  return cleaned.length > 45 ? cleaned.slice(0, 45) : cleaned;
 }
 
 export function detectDomain(topic: string, text: string): string {
@@ -52,7 +54,7 @@ export function extractKeyPhrases(text: string, maxItems: number = 6): string[] 
   const lines = text
     .split('\n')
     .map(l => l.replace(/^[- *•0-9.)]+/, '').trim())
-    .filter(l => l.length >= 10 && l.length <= 70 && !l.startsWith('http'));
+    .filter(l => l.length >= 10 && l.length <= 75 && !l.startsWith('http'));
 
   if (lines.length >= 3) {
     return lines.slice(0, maxItems);
@@ -61,7 +63,7 @@ export function extractKeyPhrases(text: string, maxItems: number = 6): string[] 
   const sentences = text
     .split(/[.\n;]/)
     .map(s => s.trim())
-    .filter(s => s.length >= 12 && s.length <= 70);
+    .filter(s => s.length >= 12 && s.length <= 75);
 
   return sentences.slice(0, maxItems);
 }
@@ -80,89 +82,71 @@ export function generateClientSynthesizedDiagram(
   // 1. MIND MAP
   if (diagramType === 'mindmap') {
     const rootLabel = sanitizeMindmapText(cleanTopic);
-    const title = `Mind Map: ${cleanTopic}`;
-    const description = `Hierarchical concept breakdown and taxonomy of ${cleanTopic}.`;
+    const title = `Concept Mind Map: ${cleanTopic}`;
+    const description = `Structured knowledge breakdown of ${cleanTopic}.`;
 
     if (domain === 'concurrency_deadlock') {
       const code = `mindmap
   root(( ${rootLabel} ))
-    Coffman Conditions
-      Mutual Exclusion
-      Hold and Wait
-      No Preemption
-      Circular Wait
+    4 Necessary Conditions
+      Mutual Exclusion (Only 1 process holds lock)
+      Hold and Wait (Holds resource while requesting another)
+      No Preemption (Resources cannot be taken by force)
+      Circular Wait (Closed loop of waiting processes)
     Detection Methods
-      Resource Allocation Graph
-      Wait-For Graph WFG
-      Cycle Detection via DFS
-      Bankers Algorithm Matrix
-    Recovery Strategies
-      Process Termination
-      Resource Preemption
-      Rollback to Checkpoint
-      Starvation Prevention
-    Prevention & Avoidance
-      Hierarchical Resource Order
-      Safe State Verification`;
-      return { mermaid_code: code, title, description };
+      Resource Allocation Graph (RAG)
+      Wait-For Graph (Cycle detection via DFS)
+      Bankers Algorithm (Safe vs Unsafe state check)
+    Resolution & Recovery
+      Process Termination (Abort 1 or all in cycle)
+      Resource Preemption (Forcibly release victim resource)
+      Rollback (Restore state to previous safe checkpoint)
+    Prevention Rules
+      Order Resources Numerically
+      Request All Resources at Once`;
+
+      return {
+        mermaid_code: code,
+        title,
+        description,
+        simplified_explanation: 'A deadlock happens when processes get permanently stuck waiting for each other to release resources, like four cars at a 4-way stop where each driver waits for the other to move. Breaking any one of the 4 conditions prevents the deadlock completely.',
+        key_takeaways: [
+          'Deadlocks require all 4 Coffman conditions to hold simultaneously.',
+          'Wait-For Graphs detect deadlocks by finding cycles using Depth-First Search.',
+          'Recovery requires terminating a process or rolling back to a safe checkpoint.'
+        ]
+      };
     }
 
     if (domain === 'networking_protocols') {
       const code = `mindmap
   root(( ${rootLabel} ))
-    Connection Lifecycle
-      SYN Initiator Packet
-      SYN-ACK Receiver Confirmation
-      ACK Final Handshake
-      FIN Connection Teardown
-    Transmission Reliability
-      Sequence Numbering
-      Sliding Window Flow Control
-      Cumulative Acknowledgments
-      Retransmission Timeout
-    Congestion Controls
-      Slow Start Phase
-      Congestion Avoidance
-      Fast Retransmit
-      Fast Recovery`;
-      return { mermaid_code: code, title, description };
-    }
+    3-Way Handshake
+      Step 1: Client sends SYN (Seq=x)
+      Step 2: Server sends SYN-ACK (Seq=y, Ack=x+1)
+      Step 3: Client sends ACK (Ack=y+1)
+    Reliable Delivery
+      Sequence Numbers (Orders incoming packets)
+      Cumulative ACKs (Confirms received bytes)
+      Retransmission Timer (Resends lost packets)
+    Flow & Congestion Control
+      Sliding Window (Prevents receiver buffer overflow)
+      Slow Start (Gradually ramps up sending rate)
+      Congestion Avoidance (Reduces rate on packet loss)
+    Teardown Phase
+      FIN and ACK exchange to close connection`;
 
-    if (domain === 'dsa_algorithms') {
-      const code = `mindmap
-  root(( ${rootLabel} ))
-    Algorithmic Core
-      Divide and Conquer Step
-      Recursive Base Condition
-      State Invariant
-    Complexity Analysis
-      Worst-case Time Complexity
-      Average-case Performance
-      Auxiliary Space Footprint
-    Optimizations
-      Pruning and Memoization
-      In-place Transformations
-      Cache Locality`;
-      return { mermaid_code: code, title, description };
-    }
-
-    if (domain === 'machine_learning') {
-      const code = `mindmap
-  root(( ${rootLabel} ))
-    Architecture Layers
-      Input Representation
-      Hidden Transformations
-      Self-Attention Query Key Value
-      Output Activation Softmax
-    Optimization Loop
-      Forward Pass Computation
-      Loss Objective Function
-      Backpropagation Gradients
-      Adam Optimizer Weight Updates
-    Generalization Controls
-      Dropout and Normalization
-      Learning Rate Schedule`;
-      return { mermaid_code: code, title, description };
+      return {
+        mermaid_code: code,
+        title,
+        description,
+        simplified_explanation: 'The TCP handshake is like a polite phone call: "Hello, can you hear me?" (SYN), "Yes I hear you, can you hear me?" (SYN-ACK), and "Yes, connection confirmed!" (ACK). This ensures both computers are ready before transmitting data.',
+        key_takeaways: [
+          'SYN initiates sequence synchronization.',
+          'SYN-ACK acknowledges client sequence and introduces server sequence.',
+          'ACK completes two-way connection setup.'
+        ]
+      };
     }
 
     // Dynamic Universal Mindmap
@@ -173,77 +157,100 @@ export function generateClientSynthesizedDiagram(
 
     const code = `mindmap
   root(( ${rootLabel} ))
-    Theoretical Framework
+    Core Principles
       ${b1}
-      Core Terminology
-      System Boundaries
-    Execution & Dynamics
+      Key Definitions
+      Essential Foundations
+    Operational Mechanism
       ${b2}
-      State Transitions
-      Inter-module Interactions
-    Constraints & Invariants
+      Step-by-Step Flow
+      Component Collaboration
+    Rules & Constraints
       ${b3}
       Boundary Conditions
-      Failure Mode Handling
+      Edge Case Handling
     Applied Realization
       ${b4}
-      Performance Metrics
-      Implementation Strategy`;
-    return { mermaid_code: code, title, description };
+      Real-World Exam Relevance
+      Performance Trade-offs`;
+
+    return {
+      mermaid_code: code,
+      title,
+      description,
+      simplified_explanation: `This map breaks down ${cleanTopic} into its core principles, step-by-step operation, boundary constraints, and practical applications.`,
+      key_takeaways: [
+        `Master the core mechanism: ${b1.slice(0, 45)}.`,
+        `Understand operational rules: ${b2.slice(0, 45)}.`,
+        `Watch for boundary constraints: ${b3.slice(0, 45)}.`
+      ]
+    };
   }
 
   // 2. SEQUENCE DIAGRAM
   if (diagramType === 'sequence') {
-    const title = `Sequence Interaction: ${cleanTopic}`;
-    const description = `Timeline interaction and message exchange flow for ${cleanTopic}.`;
+    const title = `Sequence Flow: ${cleanTopic}`;
+    const description = `Step-by-step interaction between participating components in ${cleanTopic}.`;
 
     if (domain === 'concurrency_deadlock') {
       const code = `sequenceDiagram
     autonumber
-    actor P1 as Process P1
-    participant RM as Resource Manager
-    participant WFG as Wait-For Graph Engine
-    actor P2 as Process P2
+    actor P1 as Process 1
+    participant RM as Resource Allocator
+    participant WFG as Wait-For Graph
+    actor P2 as Process 2
 
-    P1->>RM: Request Lock on Resource R1
-    RM->>WFG: Check Dependency Cycles
-    alt Resource R1 is Available
-        RM-->>P1: Grant Exclusive Lock R1
-    else Resource R1 Held by P2
-        RM->>WFG: Add Directed Edge (P1 -> P2)
-        WFG->>WFG: Run Cycle Detection (DFS)
-        alt Cycle Detected (Deadlock Condition)
-            WFG-->>RM: Deadlock Detected: Cycle [P1 -> P2 -> P1]
-            RM->>P1: Terminate or Preempt Process P1
-            Note over RM,WFG: Trigger Recovery: Rollback to Safe State
-        else No Cycle Detected
-            RM-->>P1: Block P1 (State: Suspended)
-        end
-    end
-    P2->>RM: Release Resource R1
-    RM->>WFG: Remove Edge (P1 -> P2)
-    RM-->>P1: Wakeup and Grant Lock R1`;
-      return { mermaid_code: code, title, description };
+    P1->>RM: Request Resource R1
+    RM-->>P1: Resource R1 is Free -> Granted!
+    P2->>RM: Request Resource R2
+    RM-->>P2: Resource R2 is Free -> Granted!
+    Note over P1,P2: Both processes hold 1 resource each
+    P1->>RM: Request Resource R2 (held by P2)
+    RM->>WFG: Record Edge: P1 waits for P2
+    P2->>RM: Request Resource R1 (held by P1)
+    RM->>WFG: Record Edge: P2 waits for P1
+    WFG->>WFG: Run Cycle Check (Cycle [P1 -> P2 -> P1] Detected!)
+    WFG-->>RM: ALERT: Deadlock Confirmed
+    RM->>P2: Preempt / Abort P2 to break cycle
+    RM-->>P1: Grant R2 to P1 -> System Unblocked!`;
+
+      return {
+        mermaid_code: code,
+        title,
+        description,
+        simplified_explanation: 'This sequence shows two processes that each hold one resource and want what the other holds. The Wait-For Graph engine detects the circular dependency and terminates one process so the other can finish.',
+        key_takeaways: [
+          'Process 1 holds R1 and wants R2; Process 2 holds R2 and wants R1.',
+          'Circular wait creates a cycle in the Wait-For Graph.',
+          'The OS breaks the deadlock by preempting or aborting one process.'
+        ]
+      };
     }
 
     if (domain === 'networking_protocols') {
       const code = `sequenceDiagram
     autonumber
-    actor Client as Client / Browser
-    participant Router as Gateway / Proxy
-    participant Server as Application Server
-    participant DB as Persistent Store
+    actor Client as Client (Browser)
+    participant Server as Web Server (Port 80/443)
 
-    Client->>Router: TCP SYN (Seq = x)
-    Router->>Server: Forward SYN
-    Server-->>Router: TCP SYN-ACK (Seq = y, Ack = x + 1)
-    Router-->>Client: Forward SYN-ACK
-    Client->>Server: TCP ACK (Ack = y + 1) [Connection Established]
-    Client->>Server: HTTP Request GET /api/resource (TLS Secured)
-    Server->>DB: Query Index & Fetch Record
-    DB-->>Server: Return Data Tuple
-    Server-->>Client: 200 OK (Payload JSON + ETag)`;
-      return { mermaid_code: code, title, description };
+    Client->>Server: 1. TCP SYN (Seq = 100) -> 'Let's Synchronize'
+    Server-->>Client: 2. TCP SYN-ACK (Seq = 300, Ack = 101) -> 'Acknowledged! Sync with me'
+    Client->>Server: 3. TCP ACK (Ack = 301) -> 'Connection Established!'
+    Note over Client,Server: Safe two-way channel ready for HTTP/TLS data
+    Client->>Server: 4. HTTP GET /data (Send Application Request)
+    Server-->>Client: 5. HTTP 200 OK (Return Requested Content)`;
+
+      return {
+        mermaid_code: code,
+        title,
+        description,
+        simplified_explanation: 'The 3-way handshake ensures both client and server are active and agree on sequence numbers before any real data is sent.',
+        key_takeaways: [
+          'SYN initiates the connection with the client sequence number.',
+          'SYN-ACK confirms the client number and sends the server sequence number.',
+          'ACK completes the handshake and unlocks application data transfer.'
+        ]
+      };
     }
 
     // Dynamic Universal Sequence
@@ -266,31 +273,53 @@ export function generateClientSynthesizedDiagram(
         Step2->>State: Commit State Mutation
         Step2-->>Step1: Execution Success
         Step1-->>User: Return Completed Result
-    else Invariant Violation / Boundary Error
-        State-->>Step2: Constraint Violation
-        Step2-->>Step1: Trigger Fallback Routine
-        Step1-->>User: Emit Controlled Error / Retry Signal
+    else Boundary Check Failed
+        State-->>Step2: Constraint Violation Error
+        Step2-->>Step1: Trigger Recovery Action
+        Step1-->>User: Emit Controlled Retry Notice
     end`;
-    return { mermaid_code: code, title, description };
+
+    return {
+      mermaid_code: code,
+      title,
+      description,
+      simplified_explanation: `Shows the sequential step-by-step lifecycle of ${cleanTopic}, illustrating verification, execution, and error resolution.`,
+      key_takeaways: [
+        'Operations undergo invariant checks prior to execution.',
+        'State mutations are committed only upon verification.',
+        'Failures trigger controlled recovery paths.'
+      ]
+    };
   }
 
   // 3. STATE DIAGRAM
   if (diagramType === 'stateDiagram') {
     const title = `State Machine: ${cleanTopic}`;
-    const description = `State transitions, triggers, and lifecycle for ${cleanTopic}.`;
+    const description = `Lifecycle states and triggers for ${cleanTopic}.`;
 
     if (domain === 'concurrency_deadlock') {
       const code = `stateDiagram-v2
-    [*] --> ResourceAvailable : System Initialized
-    ResourceAvailable --> Allocated : Process Requests & Acquires Lock
-    Allocated --> WaitingForResource : Process Requests Busy Lock
-    WaitingForResource --> CycleDetected : Dependency Cycle Formed
-    WaitingForResource --> Allocated : Lock Released & Acquired
-    CycleDetected --> PreemptionRollback : Recovery Algorithm Invoked
-    PreemptionRollback --> ResourceAvailable : Victim Aborted & State Restored
-    Allocated --> ResourceAvailable : Process Completes & Releases Locks
-    ResourceAvailable --> [*] : All Tasks Terminated`;
-      return { mermaid_code: code, title, description };
+    [*] --> ResourceAvailable : System Idle
+    ResourceAvailable --> ResourceAllocated : Process Requests & Acquires Lock
+    ResourceAllocated --> WaitingForResource : Requests Second Held Lock
+    WaitingForResource --> DeadlockCycleDetected : Circular Dependency Formed
+    WaitingForResource --> ResourceAllocated : Lock Released by Other Process
+    DeadlockCycleDetected --> RecoveryPreemption : OS Invokes Preemption Routine
+    RecoveryPreemption --> ResourceAvailable : Victim Aborted & Locks Returned
+    ResourceAllocated --> ResourceAvailable : Process Completes & Releases All
+    ResourceAvailable --> [*] : All Tasks Finished`;
+
+      return {
+        mermaid_code: code,
+        title,
+        description,
+        simplified_explanation: 'A resource moves from Available to Allocated when locked. If a process must wait for a lock that another process holds in a circle, the system enters the Deadlock state until recovery aborts the victim.',
+        key_takeaways: [
+          'Normal path: ResourceAvailable -> ResourceAllocated -> Released.',
+          'Contention path: ResourceAllocated -> WaitingForResource.',
+          'Deadlock state requires external OS preemption to restore safe execution.'
+        ]
+      };
     }
 
     // Dynamic Universal State Machine
@@ -299,165 +328,205 @@ export function generateClientSynthesizedDiagram(
     const s3 = sanitizeMermaidLabel(extracted[2] || 'Verification').slice(0, 18);
 
     const code = `stateDiagram-v2
-    [*] --> InitialState : Trigger Ingestion
-    InitialState --> ProcessingState : Parse Parameters (${s1})
-    ProcessingState --> VerificationState : Execute Core Logic (${s2})
-    VerificationState --> CommittedState : All Invariants Satisfied (${s3})
-    VerificationState --> FaultRecovery : Constraint Failure Detected
-    FaultRecovery --> ProcessingState : Retry with Adjusted Bounds
-    CommittedState --> Finalized : Emit Output
-    Finalized --> [*]`;
-    return { mermaid_code: code, title, description };
+    [*] --> InitialState : Start (${s1})
+    InitialState --> ActiveProcessing : Parameters Validated
+    ActiveProcessing --> VerifyingState : Execute Core Logic (${s2})
+    VerifyingState --> CompletedSuccess : Invariants Confirmed (${s3})
+    VerifyingState --> ErrorRecovery : Constraint Violation
+    ErrorRecovery --> ActiveProcessing : Retry with Adjusted Bounds
+    CompletedSuccess --> [*] : End of Lifecycle`;
+
+    return {
+      mermaid_code: code,
+      title,
+      description,
+      simplified_explanation: `Illustrates the state lifecycle of ${cleanTopic} from initiation to verification and completion.`,
+      key_takeaways: [
+        'States transition following strict condition verification.',
+        'Exceptions route through dedicated error recovery states.',
+        'Terminal state confirms successful execution.'
+      ]
+    };
   }
 
   // 4. CLASS DIAGRAM
   if (diagramType === 'class') {
     const title = `Class Architecture: ${cleanTopic}`;
-    const description = `Object model, data structures, and relationships for ${cleanTopic}.`;
+    const description = `Object model and structural relationships for ${cleanTopic}.`;
 
     if (domain === 'concurrency_deadlock') {
       const code = `classDiagram
     class Process {
         +int pid
         +ProcessState state
-        +List~Resource~ allocatedResources
+        +List~Resource~ heldResources
         +requestResource(int resId) bool
         +releaseResource(int resId) void
     }
     class ResourceManager {
+        -Vector availableResources
         -Matrix allocationTable
-        -Vector availableVector
-        -Matrix maxClaim
-        +checkSafeState() bool
-        +allocate(int pid, int resId) bool
+        -Matrix maximumClaim
+        +isSafeState() bool
+        +allocateResource(pid, resId) bool
     }
-    class WaitGraph {
-        -Map~int, Set~int~~ adjacencyList
-        +addEdge(int p1, int p2) void
-        +removeEdge(int p1, int p2) void
-        +hasCycle() bool
-        +tarjanSCC() List~Cycle~
+    class WaitForGraph {
+        -Map~int, Set~int~~ dependencyEdges
+        +addDependency(p1, p2) void
+        +detectCycle() bool
+        +findDeadlockedProcesses() List
     }
-    class DeadlockRecoveryEngine {
-        +selectVictim(List~Process~ processes) Process
-        +rollback(Process victim, Checkpoint cp) void
+    class DeadlockResolver {
+        +selectVictim(List processes) Process
+        +abortProcess(Process victim) void
+        +rollbackToCheckpoint(Process p) void
     }
-    Process "many" --> "1" ResourceManager : interacts
-    ResourceManager --> "1" WaitGraph : maintains
-    ResourceManager --> "1" DeadlockRecoveryEngine : invokes`;
-      return { mermaid_code: code, title, description };
+    Process "many" --> "1" ResourceManager : requests lock
+    ResourceManager --> "1" WaitForGraph : inspects cycles
+    ResourceManager --> "1" DeadlockResolver : triggers recovery`;
+
+      return {
+        mermaid_code: code,
+        title,
+        description,
+        simplified_explanation: 'The system structure separates concerns: Processes hold resources, the Resource Manager evaluates claims, the WaitForGraph detects cycle dependencies, and the DeadlockResolver cleans up deadlocks.',
+        key_takeaways: [
+          'Process: Encapsulates held locks and pending requests.',
+          'WaitForGraph: Directed graph maintaining dependency edges to find cycles.',
+          'DeadlockResolver: Selects victim process based on cost metric for rollback.'
+        ]
+      };
     }
 
     const className = cleanTopic.replace(/[^a-zA-Z0-9]/g, '') || 'Concept';
     const code = `classDiagram
-    class ${className}Core {
+    class ${className}Model {
         +String identifier
-        +Map configParameters
-        +initialize() void
-        +executePipeline() OutputResult
+        +Map configSettings
+        +executeOperation() Result
+        +verifyInvariants() bool
     }
-    class StateProcessor {
-        -Vector stateHistory
-        +evaluateConstraints() bool
-        +applyTransformation() void
+    class ExecutionEngine {
+        -List stateHistory
+        +processStep() void
+        +handleException() void
     }
-    class ValidatorEngine {
-        +checkInvariants() bool
-        +emitAuditLog() void
+    class ValidationAuditor {
+        +checkRules() bool
+        +generateReport() Report
     }
-    ${className}Core "1" *-- "many" StateProcessor : orchestrates
-    ${className}Core ..> ValidatorEngine : verifies with`;
-    return { mermaid_code: code, title, description };
+    ${className}Model "1" *-- "many" ExecutionEngine : coordinates
+    ${className}Model ..> ValidationAuditor : verifies with`;
+
+    return {
+      mermaid_code: code,
+      title,
+      description,
+      simplified_explanation: `Architecture model representing the entities, methods, and relationships of ${cleanTopic}.`,
+      key_takeaways: [
+        `${className}Model coordinates operations and configuration.`,
+        'ExecutionEngine processes steps and manages state history.',
+        'ValidationAuditor verifies domain constraints.'
+      ]
+    };
   }
 
   // 5. FLOWCHART (Default)
-  const title = `Flowchart: ${cleanTopic}`;
-  const description = `Algorithmic execution flow and decision logic for ${cleanTopic}.`;
+  const title = `Educational Flowchart: ${cleanTopic}`;
+  const description = `Step-by-step logic and decision flow explaining ${cleanTopic}.`;
   const dirCode = direction === 'LR' ? 'LR' : 'TD';
 
   if (domain === 'concurrency_deadlock') {
     const code = `flowchart ${dirCode}
-    subgraph S1["1. Resource Allocation Request"]
-        A["Process P1 issues Request for Resource R1"] --> B{"Is R1 currently Available?"}
-    end
+    A["Process Requests Resource R1"] --> B{"Is Resource R1 currently Free?"}
+    B -->|Yes: Free| C["Allocate Resource R1 to Process<br/>(Process continues running)"]
+    B -->|No: Busy| D["Process enters Wait Queue<br/>(Cannot proceed without R1)"]
 
-    subgraph S2["2. State Evaluation & Safety Check"]
-        B -->|Yes| C["Temporarily Allocate R1 to P1"]
-        C --> D{"Run Banker's Safety Algorithm<br/>Is State Safe?"}
-        D -->|Safe State| E["Commit Allocation<br/>Update Available Vector"]
-        D -->|Unsafe State| F["Rollback Allocation<br/>Block P1 to Prevent Deadlock"]
-    end
+    D --> E["OS adds edge to Wait-For Graph:<br/>(Process P1 → Process P2 holding R1)"]
+    E --> F{"Does Wait-For Graph contain a Circular Cycle?"}
 
-    subgraph S3["3. Wait-For Graph & Cycle Resolution"]
-        B -->|No| G["Add Directed Edge (P1 → P2) in WFG"]
-        G --> H{"Does WFG Contain a Cycle?"}
-        H -->|Cycle Detected| I["DEADLOCK CONFIRMED<br/>Select Victim Process by Cost"]
-        I --> J["Abort Victim & Preempt Held Resources"]
-        J --> E
-        H -->|No Cycle| K["Suspend P1 in Wait Queue"]
-    end
+    F -->|No: No Cycle| G["Normal Wait State<br/>(Process will wake up when R1 is released)"]
+    F -->|Yes: Cycle Exists| H["DEADLOCK CONFIRMED!<br/>Circular dependency prevents all progress"]
+
+    H --> I["Recovery Engine chooses Victim Process<br/>(Based on lowest priority or runtime cost)"]
+    I --> J["Abort Victim & Forcibly Release Held Resources"]
+    J --> C
 
     style A fill:#2563eb,stroke:#1d4ed8,color:#fff
     style B fill:#7c3aed,stroke:#6d28d9,color:#fff
-    style D fill:#d97706,stroke:#b45309,color:#fff
-    style H fill:#dc2626,stroke:#b91c1c,color:#fff
-    style E fill:#059669,stroke:#047857,color:#fff`;
-    return { mermaid_code: code, title, description };
+    style C fill:#059669,stroke:#047857,color:#fff
+    style F fill:#d97706,stroke:#b45309,color:#fff
+    style H fill:#dc2626,stroke:#b91c1c,color:#fff`;
+
+    return {
+      mermaid_code: code,
+      title,
+      description,
+      simplified_explanation: 'A deadlock is like two people each holding one shoe and refusing to share: neither can walk! When a process asks for a busy resource, it waits. If a circle of waiting processes forms, the OS detects the cycle and terminates one process to free its resources so the others can continue.',
+      key_takeaways: [
+        'Available resources are granted immediately; busy resources put the process to sleep.',
+        'The OS checks the Wait-For Graph: a closed loop means a deadlock is present.',
+        'The system breaks the deadlock by choosing a victim process and aborting it to free locks.'
+      ]
+    };
   }
 
   if (domain === 'networking_protocols') {
     const code = `flowchart ${dirCode}
-    subgraph Phase1["1. Connection Establishment"]
-        A["Client creates TCP Socket"] --> B["Send TCP SYN Packet (Seq=x)"]
-        B --> C{"Server Port Open & Listening?"}
-        C -->|Yes| D["Server replies with SYN-ACK (Seq=y, Ack=x+1)"]
-        C -->|No| E["Server sends RST Packet (Connection Refused)"]
-        D --> F["Client sends ACK (Ack=y+1)"]
-    end
-
-    subgraph Phase2["2. Data Transmission & Flow Control"]
-        F --> G["Connection ESTABLISHED<br/>Negotiate MSS & Window Size"]
-        G --> H["Send Encrypted Application Payload"]
-        H --> I{"Packet Acknowledged within RTO?"}
-        I -->|Yes| J["Slide Congestion Window Forward"]
-        I -->|No / Timeout| K["Retransmit Missing Segment<br/>Enter Slow-Start Congestion Avoidance"]
-    end
+    A["Client creates Socket & wants connection"] --> B["Step 1: Client sends SYN Packet<br/>(Random Sequence Number = x)"]
+    B --> C{"Is Server listening on Port?"}
+    C -->|No| D["Server sends RST Packet<br/>(Connection Refused)"]
+    C -->|Yes| E["Step 2: Server sends SYN-ACK Packet<br/>(Server Seq = y, Ack = x + 1)"]
+    E --> F["Step 3: Client sends ACK Packet<br/>(Ack = y + 1)"]
+    F --> G["Connection ESTABLISHED!<br/>Reliable two-way channel ready for HTTP/TLS data"]
 
     style A fill:#2563eb,stroke:#1d4ed8,color:#fff
-    style D fill:#7c3aed,stroke:#6d28d9,color:#fff
-    style G fill:#059669,stroke:#047857,color:#fff
-    style K fill:#dc2626,stroke:#b91c1c,color:#fff`;
-    return { mermaid_code: code, title, description };
+    style C fill:#7c3aed,stroke:#6d28d9,color:#fff
+    style E fill:#d97706,stroke:#b45309,color:#fff
+    style G fill:#059669,stroke:#047857,color:#fff`;
+
+    return {
+      mermaid_code: code,
+      title,
+      description,
+      simplified_explanation: 'Before two computers can exchange data over TCP, they must agree on starting numbers. Client sends SYN ("hello, start at x"). Server sends SYN-ACK ("got x, start at y"). Client sends ACK ("got y, connection ready!").',
+      key_takeaways: [
+        'Step 1 (SYN): Initiates handshake with client sequence number.',
+        'Step 2 (SYN-ACK): Server confirms client number and introduces its own.',
+        'Step 3 (ACK): Final handshake confirmation completes the reliable connection.'
+      ]
+    };
   }
 
   // Dynamic Universal Flowchart
-  const e1 = sanitizeMermaidLabel(extracted[0] || 'Input Initialization').slice(0, 35);
-  const e2 = sanitizeMermaidLabel(extracted[1] || 'Primary Transformation Step').slice(0, 35);
-  const e3 = sanitizeMermaidLabel(extracted[2] || 'Invariant & Boundary Check').slice(0, 30);
-  const e4 = sanitizeMermaidLabel(extracted[3] || 'Synthesized Output State').slice(0, 35);
+  const e1 = sanitizeMermaidLabel(extracted[0] || 'Initialize input parameters').slice(0, 45);
+  const e2 = sanitizeMermaidLabel(extracted[1] || 'Execute primary transformation').slice(0, 45);
+  const e3 = sanitizeMermaidLabel(extracted[2] || 'Check boundary constraints').slice(0, 35);
+  const e4 = sanitizeMermaidLabel(extracted[3] || 'Generate final outcome').slice(0, 45);
 
   const code = `flowchart ${dirCode}
-    subgraph Ingestion["Phase 1: Ingestion & Setup"]
-        A["${safeTopic.slice(0, 30)}: Ingress"] --> B["${e1}"]
-    end
-
-    subgraph Processing["Phase 2: Execution & Logic Check"]
-        B --> C["${e2}"]
-        C --> D{"${e3}?"}
-        D -->|Valid / Satisfied| E["Commit State Transition"]
-        D -->|Boundary Error / Retry| F["Trigger Remediation Routine"]
-        F --> C
-    end
-
-    subgraph Resolution["Phase 3: Output Synthesis"]
-        E --> G["${e4}"]
-        G --> H["Deliver Verified Result"]
-    end
+    A["Start: Concept Overview for ${safeTopic.slice(0, 30)}"] --> B["${e1}"]
+    B --> C["${e2}"]
+    C --> D{"${e3}?"}
+    D -->|Yes: Valid| E["${e4}"]
+    D -->|No: Boundary Case| F["Apply Alternative Handling & Safety Fallback"]
+    F --> E
+    E --> G["Final Result: Successfully Applied ${safeTopic.slice(0, 25)}"]
 
     style A fill:#2563eb,stroke:#1d4ed8,color:#fff
     style C fill:#7c3aed,stroke:#6d28d9,color:#fff
     style D fill:#d97706,stroke:#b45309,color:#fff
-    style H fill:#059669,stroke:#047857,color:#fff`;
+    style G fill:#059669,stroke:#047857,color:#fff`;
 
-  return { mermaid_code: code, title, description };
+  return {
+    mermaid_code: code,
+    title,
+    description,
+    simplified_explanation: `This flowchart outlines the practical decision-making process for ${cleanTopic}. It walks through the initial parameters, transformation rules, decision checks, and final verified outcome.`,
+    key_takeaways: [
+      `Initial Step: ${e1}.`,
+      `Key Decision: Verify ${e3}.`,
+      `Target Outcome: ${e4}.`
+    ]
+  };
 }

@@ -18,7 +18,8 @@ import {
   Layers,
   Activity,
   ArrowRightLeft,
-  Share2
+  Share2,
+  Lightbulb
 } from 'lucide-react';
 import mermaid from 'mermaid';
 import { multimodalVisionService } from '../../services/multimodalVisionService';
@@ -83,6 +84,8 @@ export const ConceptDiagramModal: React.FC<ConceptDiagramModalProps> = ({
   const [mermaidCode, setMermaidCode] = useState<string | null>(null);
   const [diagramTitle, setDiagramTitle] = useState<string>('');
   const [diagramDescription, setDiagramDescription] = useState<string>('');
+  const [simplifiedExplanation, setSimplifiedExplanation] = useState<string | null>(null);
+  const [keyTakeaways, setKeyTakeaways] = useState<string[]>([]);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [isCopied, setIsCopied] = useState<boolean>(false);
@@ -127,6 +130,8 @@ export const ConceptDiagramModal: React.FC<ConceptDiagramModalProps> = ({
       setMermaidCode(result.mermaid_code);
       setDiagramTitle(result.title);
       setDiagramDescription(result.description);
+      setSimplifiedExplanation(result.simplified_explanation || null);
+      setKeyTakeaways(result.key_takeaways || []);
     } catch (err: any) {
       setRenderError(err?.message || 'Failed to generate diagram. Please retry.');
     } finally {
@@ -656,6 +661,73 @@ export const ConceptDiagramModal: React.FC<ConceptDiagramModalProps> = ({
                   <Download size={14} />
                   <span>SVG</span>
                 </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Simplified Concept Explanation Card for struggling students */}
+        {simplifiedExplanation && !isGenerating && (
+          <div
+            style={{
+              padding: '16px 20px',
+              borderRadius: '16px',
+              backgroundColor: 'rgba(124, 58, 237, 0.08)',
+              border: '1px solid rgba(124, 58, 237, 0.25)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.2)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div
+                style={{
+                  width: '26px',
+                  height: '26px',
+                  borderRadius: '8px',
+                  backgroundColor: '#7c3aed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 2px 8px rgba(124, 58, 237, 0.4)'
+                }}
+              >
+                <Lightbulb size={15} color="#ffffff" />
+              </div>
+              <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                Simplified Explanation for Learners
+              </h4>
+              <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 600, marginLeft: 'auto' }}>
+                Easy-to-understand breakdown
+              </span>
+            </div>
+
+            <p style={{ fontSize: '0.84375rem', lineHeight: '1.6', color: '#e2e8f0', margin: 0 }}>
+              {simplifiedExplanation}
+            </p>
+
+            {keyTakeaways && keyTakeaways.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+                {keyTakeaways.map((takeaway, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '6px',
+                      fontSize: '0.78125rem',
+                      color: '#cbd5e1',
+                      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255, 255, 255, 0.07)'
+                    }}
+                  >
+                    <Check size={14} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <span>{takeaway}</span>
+                  </div>
+                ))}
               </div>
             )}
           </div>

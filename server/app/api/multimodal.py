@@ -345,6 +345,8 @@ class GenerateDiagramResponse(BaseModel):
     mermaid_code: str
     title: str
     description: str
+    simplified_explanation: Optional[str] = None
+    key_takeaways: Optional[List[str]] = None
 
 
 @router.post("/analyze-material", response_model=MaterialAnalysisResponse)
@@ -380,7 +382,7 @@ async def analyze_material(
             import httpx
             import json
 
-            models_to_try = ["gemini-flash-latest", "gemini-3.1-flash-lite", "gemini-2.5-flash-lite", "gemini-3.5-flash"]
+            models_to_try = ["gemini-3.1-flash-lite", "gemini-flash-latest"]
             for model in models_to_try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
                 payload = {
@@ -390,7 +392,7 @@ async def analyze_material(
                 }
 
                 try:
-                    async with httpx.AsyncClient(timeout=30.0) as client:
+                    async with httpx.AsyncClient(timeout=25.0) as client:
                         res = await client.post(url, json=payload)
                         if res.status_code == 200:
                             data = res.json()
@@ -448,7 +450,7 @@ async def generate_diagram_from_text(
     user: Optional[UserModel] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
-    """Generate a topic-aligned Mermaid.js concept diagram (Flowchart, Mind Map, Sequence, State, or Class)."""
+    """Generate a topic-aligned Mermaid.js concept diagram with educational content and simplified explanation."""
     from server.app.services.diagram_synthesizer import generate_synthesized_diagram
 
     gemini_key = os.getenv("GEMINI_API_KEY")
@@ -457,82 +459,82 @@ async def generate_diagram_from_text(
     diagram_type = request.diagram_type or "flowchart"
     direction = request.direction or "TD"
 
-    # Specialized prompt instruction per diagram type to avoid generic boilerplate
+    # Specialized educational guidance per diagram type
     type_guidelines = {
         "mindmap": (
-            "You are creating a Mermaid native MIND MAP.\n"
-            "Format rules:\n"
+            "DIAGRAM TYPE: Mermaid native MIND MAP.\n"
+            "Syntax rules:\n"
             "1. Line 1 MUST be 'mindmap'\n"
             "2. Line 2 MUST be '  root(( Topic Name ))'\n"
-            "3. Use 2-space indentation per level. Do NOT use brackets or quotes inside leaf nodes.\n"
-            "4. Organize branches into: Core Mechanism, Conditions / Rules, Implementation / Algorithms, Failure Modes / Edge Cases.\n"
-            "5. CRITICAL: Every single branch must use actual technical terms, formulas, and components of the topic. NEVER use generic placeholders like 'Core Definitions' or 'Overview'."
+            "3. Use 2-space indentation per level. Do NOT use brackets or quotes inside branch text.\n"
+            "4. Make branches explain real mechanisms, conditions, algorithms, and applications of the topic.\n"
+            "5. NO generic roadmap labels like 'Step 1' or 'Overview'."
         ),
         "sequence": (
-            "You are creating a Mermaid SEQUENCE DIAGRAM.\n"
-            "Format rules:\n"
+            "DIAGRAM TYPE: Mermaid SEQUENCE DIAGRAM.\n"
+            "Syntax rules:\n"
             "1. Start with 'sequenceDiagram' and 'autonumber'.\n"
-            "2. Declare 3-4 specific participating actors/modules (e.g., Process, Mutex, Resource Manager, State Engine).\n"
-            "3. Step through a complete message lifecycle including request, verification, state mutation, and response.\n"
-            "4. Include an 'alt ... else ... end' condition for success vs failure/block.\n"
-            "5. CRITICAL: Name real domain actors and real actions. NO generic 'Participant A'."
+            "2. Identify 3-4 specific participating actors or components (e.g. Client, Server, Mutex, OS Scheduler).\n"
+            "3. Message labels must explain the real action or data exchanged.\n"
+            "4. Include an 'alt ... else ... end' condition demonstrating success vs failure or blocking."
         ),
         "stateDiagram": (
-            "You are creating a Mermaid STATE MACHINE (stateDiagram-v2).\n"
-            "Format rules:\n"
+            "DIAGRAM TYPE: Mermaid STATE MACHINE (stateDiagram-v2).\n"
+            "Syntax rules:\n"
             "1. Start with 'stateDiagram-v2'.\n"
-            "2. Define transitions from '[*] --> InitialState' to intermediate states and terminal states.\n"
-            "3. Label transitions with triggers and conditions (e.g., 'Allocated --> Waiting : LockBusy').\n"
-            "4. CRITICAL: Use the real lifecycle states of the topic."
+            "2. Show system lifecycle states from '[*] --> InitialState' to terminal states.\n"
+            "3. Label arrows with real event triggers (e.g. 'StateA --> StateB : TriggerEvent')."
         ),
         "class": (
-            "You are creating a Mermaid CLASS DIAGRAM (classDiagram).\n"
-            "Format rules:\n"
+            "DIAGRAM TYPE: Mermaid CLASS DIAGRAM (classDiagram).\n"
+            "Syntax rules:\n"
             "1. Start with 'classDiagram'.\n"
-            "2. Model 3-4 key classes with concrete attributes (+type name) and methods (+methodName()).\n"
+            "2. Model 3-4 key classes with concrete attributes and methods.\n"
             "3. Show real relationships ('-->' or '--*' or '..|>')."
         ),
         "flowchart": (
-            f"You are creating a Mermaid FLOWCHART (flowchart {direction}).\n"
-            "Format rules:\n"
+            f"DIAGRAM TYPE: Mermaid FLOWCHART (flowchart {direction}).\n"
+            "Syntax rules:\n"
             f"1. Start with 'flowchart {direction}'.\n"
-            "2. Group operations into 2-3 named subgraphs representing logical stages.\n"
-            "3. Include at least 1 decision diamond with {Condition?} and branching paths (-->|Yes| and -->|No|).\n"
-            "4. Wrap all node labels in double quotes, e.g. A[\"Label Text\"].\n"
-            "5. Add modern styling lines (e.g. style A fill:#2563eb,stroke:#1d4ed8,color:#fff).\n"
-            "6. CRITICAL: NEVER use generic labels like 'Step 1' or 'Overview'. Every node must feature specific algorithms, formulas, decisions, or terms from the text."
+            "2. Every node MUST explain a real fact, rule, step, or formula of the concept (e.g. A[\"Process Requests Lock on Resource\"] --> B{{\"Is Resource Available?\"}}).\n"
+            "3. Include at least 1 decision diamond with {Condition?} and labeled branching paths (-->|Yes| and -->|No|).\n"
+            "4. Wrap all node texts in double quotes.\n"
+            "5. Style key nodes with modern colors (style A fill:#2563eb,stroke:#1d4ed8,color:#fff)."
         ),
     }
 
     selected_guideline = type_guidelines.get(diagram_type, type_guidelines["flowchart"])
 
     system_prompt = (
-        "You are CogniLens Advanced Diagram Generator AI.\n"
-        "Your mission is to generate deeply topic-aligned, highly educational Mermaid.js diagrams.\n"
-        "OUTPUT FORMAT: Return ONLY a valid JSON object with keys: \"mermaid_code\" (string), \"title\" (string), \"description\" (string).\n\n"
-        f"DIAGRAM SPECIFICATION:\n{selected_guideline}\n\n"
-        "SYNTAX SAFETY:\n"
-        "- Do NOT enclose mermaid_code in triple backticks.\n"
-        "- The mermaid_code must be immediately renderable by Mermaid.js without errors."
+        "You are CogniLens Educational AI Tutor. Your mission is to help students who find complex concepts difficult.\n"
+        "Given a study topic and source text, you produce:\n"
+        f"1. An educational Mermaid.js diagram following this specification:\n{selected_guideline}\n"
+        "   - CRITICAL REQUIREMENT: Every single node in the diagram MUST display concrete, informative knowledge, rules, steps, or definitions about the topic. NEVER output generic roadmap placeholders like 'Phase 1: Ingestion', 'Step 1', 'Overview', 'Setup', 'Ingress', 'Transition State', 'Applications', 'System Boundaries', 'Deliver Result'. Every node MUST display real facts and mechanisms of the topic.\n"
+        "   - Do NOT enclose mermaid_code in markdown backticks.\n"
+        "2. A simplified, plain-English explanation (analogies encouraged) so anyone who finds the topic difficult can understand it easily.\n"
+        "3. 3 concise key takeaways.\n\n"
+        "OUTPUT FORMAT: Return ONLY a valid JSON object with keys:\n"
+        "\"mermaid_code\" (string), \"title\" (string, max 7 words), \"description\" (string), "
+        "\"simplified_explanation\" (string), \"key_takeaways\" (array of 3 strings)."
     )
 
-    user_prompt = f"Create a topic-specific {diagram_type} diagram for: \"{topic_label}\".\n\nStudy Material Context:\n{text_snippet}"
+    user_prompt = f"Topic to explain: \"{topic_label}\"\n\nSource material context:\n{text_snippet}"
 
     if gemini_key:
-        try:
-            import httpx
-            import json
-
-            model = "gemini-flash-latest"
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
-            payload = {
-                "systemInstruction": {"parts": [{"text": system_prompt}]},
-                "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
-                "generationConfig": {"temperature": 0.25, "responseMimeType": "application/json"},
-            }
-
+        models_to_try = ["gemini-3.1-flash-lite", "gemini-flash-latest"]
+        for model in models_to_try:
             try:
-                async with httpx.AsyncClient(timeout=3.5) as client:
+                import httpx
+                import json
+
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
+                payload = {
+                    "systemInstruction": {"parts": [{"text": system_prompt}]},
+                    "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+                    "generationConfig": {"temperature": 0.25, "responseMimeType": "application/json"},
+                }
+
+                async with httpx.AsyncClient(timeout=25.0) as client:
                     res = await client.post(url, json=payload)
                     if res.status_code == 200:
                         data = res.json()
@@ -546,11 +548,13 @@ async def generate_diagram_from_text(
                             .strip()
                         )
 
-                        if clean_code and ("flowchart" in clean_code or "mindmap" in clean_code or "sequenceDiagram" in clean_code or "stateDiagram" in clean_code or "classDiagram" in clean_code):
+                        if clean_code and any(k in clean_code for k in ["flowchart", "graph", "mindmap", "sequenceDiagram", "stateDiagram", "classDiagram"]):
                             resp = GenerateDiagramResponse(
                                 mermaid_code=clean_code,
                                 title=parsed.get("title", f"{diagram_type.title()} of {topic_label}"),
                                 description=parsed.get("description", f"Visual representation of {topic_label}."),
+                                simplified_explanation=parsed.get("simplified_explanation"),
+                                key_takeaways=parsed.get("key_takeaways", []),
                             )
                             if user:
                                 try:
@@ -564,13 +568,11 @@ async def generate_diagram_from_text(
                                 except Exception:
                                     pass
                             return resp
-            except Exception as inner_e:
-                logger.debug("Model %s failed or timed out in generate_diagram: %s", model, inner_e)
-        except Exception as e:
-            logger.warning("Gemini diagram generation error: %s", e)
+            except Exception as e:
+                logger.warning("Gemini diagram generation error with model %s: %s", model, e)
 
-    # Topic-Aligned Intelligent Fallback Synthesizer (Zero Generic Boilerplate)
-    synth_code, synth_title, synth_desc = generate_synthesized_diagram(
+    # Topic-Aligned Educational Fallback Synthesizer
+    synth_code, synth_title, synth_desc, synth_simple, synth_takeaways = generate_synthesized_diagram(
         topic=topic_label,
         text_content=text_snippet,
         diagram_type=diagram_type,
@@ -593,4 +595,6 @@ async def generate_diagram_from_text(
         mermaid_code=synth_code,
         title=synth_title,
         description=synth_desc,
+        simplified_explanation=synth_simple,
+        key_takeaways=synth_takeaways,
     )
