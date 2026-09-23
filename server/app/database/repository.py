@@ -57,48 +57,19 @@ def create_user(
     db.commit()
     db.refresh(user)
 
-    # Initialize user progress state
+    # Initialize user progress state (clean initial state)
     init_progress = ProgressModel(
         user_id=user.id,
-        overall_mastery=72,
-        total_study_hours=0.5,
-        quiz_accuracy=80,
-        current_streak_days=1,
+        overall_mastery=0,
+        total_study_hours=0.0,
+        quiz_accuracy=0,
+        current_streak_days=0,
         last_active_date=datetime.utcnow().strftime("%Y-%m-%d"),
-        active_days_history=[datetime.utcnow().strftime("%Y-%m-%d")],
-        total_questions_answered=5,
-        flashcards_mastered=10,
-        last_studied={
-            "materialId": "mat-os-unit3",
-            "title": "OS — Unit 3 Deadlocks & Synchronization",
-            "filename": "OS_Unit3_Deadlocks.pdf",
-            "course": "Operating Systems",
-            "page": 1,
-            "totalPages": 42,
-            "sectionTitle": "Section: Introduction to Deadlocks (p. 1)",
-            "progressPercentage": 10,
-            "lastUpdated": "Just now",
-        },
-        courses=[
-            {
-                "course": "Operating Systems",
-                "masteryPercentage": 74,
-                "topicsCompleted": 4,
-                "totalTopics": 8,
-                "strongTopics": ["Process Synchronization", "Semaphores"],
-                "weakTopics": ["Deadlock Avoidance", "Banker Algorithm"],
-                "recentScore": 80,
-            },
-            {
-                "course": "Machine Learning",
-                "masteryPercentage": 70,
-                "topicsCompleted": 3,
-                "totalTopics": 9,
-                "strongTopics": ["Linear Regression", "Cost Functions"],
-                "weakTopics": ["Gradient Descent Convergence"],
-                "recentScore": 75,
-            }
-        ]
+        active_days_history=[],
+        total_questions_answered=0,
+        flashcards_mastered=0,
+        last_studied=None,
+        courses=[],
     )
     db.add(init_progress)
 
@@ -108,12 +79,9 @@ def create_user(
         title=f"Welcome to CogniLens, {clean_name}!",
         type="user",
         timestamp_str="Just now",
-        result_snippet="Personalized study workspace initialized on Azure Database.",
+        result_snippet="Upload your study materials to start your personalized learning journey.",
     )
     db.add(welcome_act)
-
-    # Seed initial course materials for this user so workspace is ready to use
-    _seed_initial_materials_for_user(db, user.id)
 
     db.commit()
     return user
@@ -254,13 +222,16 @@ def get_or_create_user_progress(db: Session, user_id: str) -> ProgressModel:
     if not prog:
         prog = ProgressModel(
             user_id=user_id,
-            overall_mastery=70,
+            overall_mastery=0,
             total_study_hours=0.0,
-            quiz_accuracy=80,
-            current_streak_days=1,
+            quiz_accuracy=0,
+            current_streak_days=0,
             last_active_date=datetime.utcnow().strftime("%Y-%m-%d"),
-            active_days_history=[datetime.utcnow().strftime("%Y-%m-%d")],
+            active_days_history=[],
             courses=[],
+            total_questions_answered=0,
+            flashcards_mastered=0,
+            last_studied=None,
         )
         db.add(prog)
         db.commit()
@@ -491,59 +462,4 @@ def save_user_study_plan(
     return plan
 
 
-# ==============================================================================
-# Helper to Seed Initial Study Materials
-# ==============================================================================
-def _seed_initial_materials_for_user(db: Session, user_id: str) -> None:
-    """Seed foundational course materials for newly created student account."""
-    initial_docs = [
-        {
-            "id": f"mat-os-{user_id[:6]}",
-            "title": "OS — Unit 3 Deadlocks & Synchronization",
-            "filename": "OS_Unit3_Deadlocks.pdf",
-            "type": "pdf",
-            "pages_count": 42,
-            "size": "4.8 MB",
-            "course": "Operating Systems",
-            "topics": ["Deadlock", "Mutual Exclusion", "Hold and Wait", "Banker Algorithm", "Resource Allocation Graph"],
-            "content_preview": "A deadlock occurs when a set of processes are blocked because each process is holding a resource and waiting for another resource acquired by some other process.",
-            "sections": [
-                {"id": "sec-os-1", "page": 18, "title": "Four Coffman Conditions for Deadlock", "snippet": "Deadlock can arise if four conditions hold simultaneously: 1. Mutual Exclusion, 2. Hold and Wait, 3. No Preemption, 4. Circular Wait."},
-                {"id": "sec-os-2", "page": 42, "title": "Resource Allocation Graph & Deadlock Detection", "snippet": "Deadlock Detection in single-instance resource systems reduces to cycle detection in a directed RAG."},
-                {"id": "sec-os-3", "page": 31, "title": "Banker's Algorithm for Deadlock Avoidance", "snippet": "Dijkstra's Banker's Algorithm tests for safety by simulating the allocation of maximum possible resources."}
-            ]
-        },
-        {
-            "id": f"mat-ml-{user_id[:6]}",
-            "title": "Machine Learning — Linear Regression & Cost Functions",
-            "filename": "Machine Learning — Linear Regression.pdf",
-            "type": "pdf",
-            "pages_count": 28,
-            "size": "3.2 MB",
-            "course": "Machine Learning",
-            "topics": ["Linear Regression", "Mean Squared Error", "Gradient Descent", "Hyperparameters"],
-            "content_preview": "Supervised learning algorithm used to model the linear relationship between a dependent variable y and one or more independent predictor features X.",
-            "sections": [
-                {"id": "sec-ml-1", "page": 4, "title": "Mean Squared Error (MSE) Loss Function", "snippet": "The Cost Function J(θ) measures the average squared difference between predictions and actual targets."},
-                {"id": "sec-ml-2", "page": 12, "title": "Gradient Descent Optimization Rule", "snippet": "The update rule for gradient descent: θ_j := θ_j - α * (∂ / ∂θ_j) J(θ)."}
-            ]
-        }
-    ]
 
-    for item in initial_docs:
-        doc = DocumentModel(
-            id=item["id"],
-            user_id=user_id,
-            title=item["title"],
-            filename=item["filename"],
-            type=item["type"],
-            pages_count=item["pages_count"],
-            size=item["size"],
-            upload_date="Sep 20, 2026",
-            status="indexed",
-            course=item["course"],
-            topics=item["topics"],
-            content_preview=item["content_preview"],
-            sections=item["sections"],
-        )
-        db.add(doc)

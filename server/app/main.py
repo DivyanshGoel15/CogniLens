@@ -18,6 +18,8 @@ from server.app.api.documents import router as documents_router
 from server.app.api.progress import router as progress_router
 from server.app.api.study_plan import router as study_plan_router
 from server.app.api.multimodal import router as multimodal_router
+from server.app.api.flashcards import router as flashcards_router
+from server.app.api.quiz import router as quiz_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -61,6 +63,8 @@ app.include_router(documents_router)
 app.include_router(progress_router)
 app.include_router(study_plan_router)
 app.include_router(multimodal_router)
+app.include_router(flashcards_router)
+app.include_router(quiz_router)
 
 
 @app.get("/", tags=["Root"])

@@ -14,9 +14,9 @@ export interface UserProfile {
 }
 
 export const INITIAL_USER_PROFILE: UserProfile = {
-  fullName: 'Student Member',
-  email: 'student@cognilens.edu',
-  avatarInitials: 'S',
+  fullName: '',
+  email: '',
+  avatarInitials: '',
   avatarBgColor: '#3b82f6',
   major: 'Computer Science',
   academicYear: 'Year 3',

@@ -159,84 +159,127 @@ export const StudyPlanScreen: React.FC = () => {
       )}
 
       {/* Week Day Tasks Timeline */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {studyPlan?.items.map((item) => {
-          const isDone = item.status === 'completed';
+      {!studyPlan || studyPlan.items.length === 0 ? (
+        <div
+          className="card"
+          style={{
+            padding: '48px 24px',
+            textAlign: 'center',
+            backgroundColor: 'var(--bg-surface)',
+            borderRadius: 'var(--radius-xl)',
+            border: '1.5px dashed var(--border-subtle)',
+          }}
+        >
+          <div
+            style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '50%',
+              backgroundColor: 'var(--accent-primary-light)',
+              color: 'var(--accent-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+            }}
+          >
+            <Sparkles size={28} />
+          </div>
+          <h3 style={{ fontSize: '1.125rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '8px' }}>
+            No Active Study Plan
+          </h3>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '24px', maxWidth: '420px', margin: '0 auto 20px' }}>
+            Generate your personalized, adaptive weekly study roadmap based on your uploaded course notes and goals.
+          </p>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="btn btn-primary btn-md"
+            style={{ gap: '6px', margin: '0 auto' }}
+          >
+            <Sparkles size={16} />
+            Generate My First Study Plan
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {studyPlan.items.map((item) => {
+            const isDone = item.status === 'completed';
 
-          return (
-            <div
-              key={item.id}
-              className="card"
-              style={{
-                padding: '16px 20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '16px',
-                backgroundColor: isDone ? 'var(--bg-surface-subtle)' : 'var(--bg-surface)',
-                borderColor: isDone ? 'var(--border-subtle)' : 'var(--border-default)',
-                opacity: isDone ? 0.75 : 1,
-                transition: 'all var(--transition-fast)'
-              }}
-            >
-              {/* Left checkbox & Day info */}
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flex: 1 }}>
-                <button
-                  onClick={() => handleToggleTask(item.id)}
-                  style={{ marginTop: '2px', color: isDone ? 'var(--color-success)' : 'var(--text-muted)' }}
-                  aria-label={isDone ? 'Mark task as incomplete' : 'Mark task as completed'}
-                >
-                  {isDone ? <CheckCircle2 size={20} /> : <Circle size={20} />}
-                </button>
-
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
-                      {item.day} ({item.dateStr})
-                    </span>
-                    <span className="badge badge-neutral" style={{ fontSize: '0.6875rem' }}>
-                      {item.course}
-                    </span>
-                    <span style={{ fontSize: '0.725rem', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                      <Clock size={11} /> {item.durationMinutes} min
-                    </span>
-                  </div>
-
-                  <h4
-                    style={{
-                      fontSize: '0.9375rem',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                      textDecoration: isDone ? 'line-through' : 'none'
-                    }}
+            return (
+              <div
+                key={item.id}
+                className="card"
+                style={{
+                  padding: '16px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '16px',
+                  backgroundColor: isDone ? 'var(--bg-surface-subtle)' : 'var(--bg-surface)',
+                  borderColor: isDone ? 'var(--border-subtle)' : 'var(--border-default)',
+                  opacity: isDone ? 0.75 : 1,
+                  transition: 'all var(--transition-fast)'
+                }}
+              >
+                {/* Left checkbox & Day info */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flex: 1 }}>
+                  <button
+                    onClick={() => handleToggleTask(item.id)}
+                    style={{ marginTop: '2px', color: isDone ? 'var(--color-success)' : 'var(--text-muted)' }}
+                    aria-label={isDone ? 'Mark task as incomplete' : 'Mark task as completed'}
                   >
-                    {item.topic}
-                  </h4>
+                    {isDone ? <CheckCircle2 size={20} /> : <Circle size={20} />}
+                  </button>
 
-                  <p style={{ fontSize: '0.785rem', color: 'var(--text-secondary)', marginTop: '3px' }}>
-                    <strong>AI Rationale:</strong> {item.aiRationale}
-                  </p>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                        {item.day} ({item.dateStr})
+                      </span>
+                      <span className="badge badge-neutral" style={{ fontSize: '0.6875rem' }}>
+                        {item.course}
+                      </span>
+                      <span style={{ fontSize: '0.725rem', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <Clock size={11} /> {item.durationMinutes} min
+                      </span>
+                    </div>
+
+                    <h4
+                      style={{
+                        fontSize: '0.9375rem',
+                        fontWeight: 600,
+                        color: 'var(--text-primary)',
+                        textDecoration: isDone ? 'line-through' : 'none'
+                      }}
+                    >
+                      {item.topic}
+                    </h4>
+
+                    <p style={{ fontSize: '0.785rem', color: 'var(--text-secondary)', marginTop: '3px' }}>
+                      <strong>AI Rationale:</strong> {item.aiRationale}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Action Shortcut Button */}
+                <div>
+                  <button
+                    onClick={() => handleActionClick(item)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ gap: '6px', fontSize: '0.75rem' }}
+                  >
+                    {item.activityType === 'practice_quiz' && <HelpCircle size={13} color="var(--color-warning)" />}
+                    {item.activityType === 'flashcard_review' && <Layers size={13} color="var(--color-purple)" />}
+                    {item.activityType === 'diagram_analysis' && <ScanEye size={13} color="var(--accent-primary)" />}
+                    {item.activityType === 'read' && <BookOpen size={13} color="var(--accent-primary)" />}
+                    <span>Start Task</span>
+                  </button>
                 </div>
               </div>
-
-              {/* Action Shortcut Button */}
-              <div>
-                <button
-                  onClick={() => handleActionClick(item)}
-                  className="btn btn-secondary btn-sm"
-                  style={{ gap: '6px', fontSize: '0.75rem' }}
-                >
-                  {item.activityType === 'practice_quiz' && <HelpCircle size={13} color="var(--color-warning)" />}
-                  {item.activityType === 'flashcard_review' && <Layers size={13} color="var(--color-purple)" />}
-                  {item.activityType === 'diagram_analysis' && <ScanEye size={13} color="var(--accent-primary)" />}
-                  {item.activityType === 'read' && <BookOpen size={13} color="var(--accent-primary)" />}
-                  <span>Start Task</span>
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Modal for Generating New Plan */}
       {isModalOpen && (

@@ -1175,6 +1175,26 @@ class QuizService {
       answers: submissions
     };
 
+    // Persist to backend database
+    try {
+      await apiClient.submitQuiz({
+        quizId: result.id,
+        course: questions[0]?.course || 'General',
+        topic: questions[0]?.topic || 'General',
+        score: scorePct,
+        scorePercentage: scorePct,
+        totalQuestions: total,
+        correctAnswers: correct,
+        timeSpentSeconds: timeSpentSec,
+        strongTopics: Array.from(strongTopics),
+        weakTopics: Array.from(weakTopics),
+        recommendedRevision: recommendedRevision.map(r => r.topic),
+        answers: submissions,
+      });
+    } catch (e) {
+      console.warn('Failed saving quiz submission to backend database', e);
+    }
+
     return {
       success: true,
       data: result,

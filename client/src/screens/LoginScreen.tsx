@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowRight, Zap, ArrowLeft } from 'lucide-react';
+import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useToast } from '../context/ToastContext';
+import { apiClient } from '../services/apiClient';
 
 export const LoginScreen: React.FC = () => {
   const { login, setCurrentRoute } = useApp();
@@ -10,22 +11,39 @@ export const LoginScreen: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password.trim()) {
-      showToast('Validation Error', 'Please enter your email and password.', 'error');
+      setErrorMsg('Please enter your email and password.');
       return;
     }
 
-    login(email);
-    showToast('Welcome Back!', 'Logged into CogniLens study workspace.', 'success');
-  };
+    setIsLoading(true);
+    setErrorMsg('');
 
-  const handleDemoLogin = () => {
-    login('student@cognilens.edu', 'Student Member');
-    showToast('Demo Access Granted', 'Logged in as Student Member.', 'success');
+    try {
+      // Call real backend API — gets actual user data (fullName, major, etc.)
+      const authData = await apiClient.login(email.trim().toLowerCase(), password);
+      const user = authData.user;
+
+      await login(user.email, user.fullName, authData.access_token, {
+        fullName: user.fullName,
+        major: user.major,
+        academicYear: user.academicYear,
+        avatarInitials: user.avatarInitials,
+        avatarBgColor: user.avatarBgColor,
+      });
+
+      showToast('Welcome Back!', `Signed in as ${user.fullName}.`, 'success');
+    } catch (err: any) {
+      const msg = err?.message || 'Invalid email or password. Please try again.';
+      setErrorMsg(msg);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -41,7 +59,7 @@ export const LoginScreen: React.FC = () => {
         color: 'var(--text-primary, #f8fafc)'
       }}
     >
-      {/* Top Header Back Link */}
+      {/* Back Link */}
       <div style={{ position: 'absolute', top: '24px', left: '24px' }}>
         <button
           onClick={() => setCurrentRoute('landing')}
@@ -53,7 +71,7 @@ export const LoginScreen: React.FC = () => {
         </button>
       </div>
 
-      {/* Main Login Card */}
+      {/* Login Card */}
       <div
         className="card"
         style={{
@@ -91,22 +109,36 @@ export const LoginScreen: React.FC = () => {
           </p>
         </div>
 
+        {/* Error Banner */}
+        {errorMsg && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            backgroundColor: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
+            borderRadius: '10px', padding: '10px 14px', marginBottom: '16px',
+            fontSize: '0.8125rem', color: '#fca5a5'
+          }}>
+            <AlertCircle size={15} style={{ flexShrink: 0 }} />
+            {errorMsg}
+          </div>
+        )}
+
         {/* Login Form */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
-              Email Address / Username
+              Email Address
             </label>
             <div style={{ position: 'relative' }}>
               <Mail size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
               <input
                 type="email"
                 className="input-text"
-                placeholder="student@cognilens.edu"
+                placeholder="your@email.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); setErrorMsg(''); }}
                 style={{ paddingLeft: '38px', backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.15)' }}
                 required
+                disabled={isLoading}
               />
             </div>
           </div>
@@ -122,9 +154,10 @@ export const LoginScreen: React.FC = () => {
                 className="input-text"
                 placeholder="••••••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => { setPassword(e.target.value); setErrorMsg(''); }}
                 style={{ paddingLeft: '38px', paddingRight: '38px', backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.15)' }}
                 required
+                disabled={isLoading}
               />
               <button
                 type="button"
@@ -136,19 +169,10 @@ export const LoginScreen: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.785rem' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                style={{ borderRadius: '4px' }}
-              />
-              Remember me
-            </label>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', fontSize: '0.785rem' }}>
             <button
               type="button"
-              onClick={handleDemoLogin}
+              onClick={() => showToast('Password Reset', 'Contact support or use your registered email to reset your password.', 'info')}
               style={{ background: 'none', border: 'none', color: '#60a5fa', fontWeight: 600, cursor: 'pointer' }}
             >
               Forgot password?
@@ -159,25 +183,20 @@ export const LoginScreen: React.FC = () => {
             type="submit"
             className="btn btn-primary btn-md"
             style={{ marginTop: '6px', width: '100%', padding: '12px', fontSize: '0.9rem', gap: '6px' }}
+            disabled={isLoading}
           >
-            <span>Sign In</span>
-            <ArrowRight size={16} />
+            {isLoading ? (
+              <span>Signing in...</span>
+            ) : (
+              <>
+                <span>Sign In</span>
+                <ArrowRight size={16} />
+              </>
+            )}
           </button>
         </form>
 
-        {/* Quick Demo Login Divider & Button */}
-        <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)', textAlign: 'center' }}>
-          <button
-            onClick={handleDemoLogin}
-            className="btn btn-secondary"
-            style={{ width: '100%', padding: '10px', fontSize: '0.84375rem', gap: '8px', backgroundColor: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#f59e0b', fontWeight: 700 }}
-          >
-            <Zap size={16} />
-            <span>⚡ Quick Demo Login (One Click)</span>
-          </button>
-        </div>
-
-        {/* Footer link to Signup */}
+        {/* Footer */}
         <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '0.84375rem', color: '#94a3b8' }}>
           Don't have an account?{' '}
           <button

@@ -425,6 +425,68 @@ class APIClient {
     if (!res.ok) throw new Error(`Task update error ${res.status}`);
     return await res.json();
   }
+
+  // ============================================================================
+  // Flashcard Decks & Spaced Repetition
+  // ============================================================================
+  async getFlashcardDecks(): Promise<any[]> {
+    const res = await fetch(`${this.baseUrl}/flashcards/decks`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Flashcard decks error ${res.status}`);
+    return await res.json();
+  }
+
+  async saveFlashcardDeck(deck: any): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/flashcards/decks`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(deck),
+    });
+    if (!res.ok) throw new Error(`Save flashcard deck error ${res.status}`);
+    return await res.json();
+  }
+
+  async deleteFlashcardDeck(deckId: string): Promise<boolean> {
+    const res = await fetch(`${this.baseUrl}/flashcards/decks/${deckId}`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    return res.ok;
+  }
+
+  async updateCardConfidence(deckId: string, cardId: string, confidence: string): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/flashcards/card/confidence`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ deck_id: deckId, card_id: cardId, confidence }),
+    });
+    if (!res.ok) throw new Error(`Update card confidence error ${res.status}`);
+    return await res.json();
+  }
+
+  // ============================================================================
+  // Quiz History & Submissions
+  // ============================================================================
+  async getQuizHistory(): Promise<any[]> {
+    const res = await fetch(`${this.baseUrl}/quiz/history`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Quiz history error ${res.status}`);
+    return await res.json();
+  }
+
+  async submitQuiz(payload: any): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/quiz/submit`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`Submit quiz error ${res.status}`);
+    return await res.json();
+  }
 }
 
 export const apiClient = new APIClient();

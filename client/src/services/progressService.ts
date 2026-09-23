@@ -26,109 +26,23 @@ const getPastDateStrs = (count: number): string[] => {
 };
 
 export const INITIAL_PROGRESS_STATE: LearningProgressState = {
-  overallMastery: 78,
-  totalStudyHours: 14.5,
-  quizAccuracy: 84,
-  currentStreakDays: 6,
+  overallMastery: 0,
+  totalStudyHours: 0,
+  quizAccuracy: 0,
+  currentStreakDays: 0,
   lastActiveDate: getTodayDateStr(),
-  activeDaysHistory: getPastDateStrs(6),
-  totalQuestionsAnswered: 48,
-  flashcardsMastered: 32,
-  lastStudied: {
-    materialId: 'mat-ml-linear',
-    title: 'Machine Learning — Linear Regression & Cost Functions',
-    filename: 'Machine Learning — Linear Regression.pdf',
-    course: 'Machine Learning',
-    page: 4,
-    totalPages: 28,
-    sectionTitle: 'Section: Mean Squared Error Loss Formulation (p. 4)',
-    progressPercentage: 72,
-    lastUpdated: '15m ago'
-  },
-  courses: [
-    {
-      course: 'Operating Systems',
-      masteryPercentage: 74,
-      topicsCompleted: 6,
-      totalTopics: 8,
-      strongTopics: ['Process Synchronization', 'Semaphores', 'CPU Scheduling'],
-      weakTopics: ['Deadlock Detection', 'Banker Algorithm Safe States'],
-      recentScore: 80
-    },
-    {
-      course: 'Machine Learning',
-      masteryPercentage: 82,
-      topicsCompleted: 7,
-      totalTopics: 9,
-      strongTopics: ['Linear Regression', 'Cost Functions', 'Overfitting'],
-      weakTopics: ['Gradient Descent Convergence', 'Learning Rate Tuning'],
-      recentScore: 90
-    },
-    {
-      course: 'DBMS',
-      masteryPercentage: 79,
-      topicsCompleted: 5,
-      totalTopics: 7,
-      strongTopics: ['1NF', '2NF', 'Relational Algebra'],
-      weakTopics: ['BCNF Decomposition', 'Lossless Joins'],
-      recentScore: 82
-    },
-    {
-      course: 'Java OOP',
-      masteryPercentage: 88,
-      topicsCompleted: 8,
-      totalTopics: 8,
-      strongTopics: ['Polymorphism', 'Interfaces', 'Abstract Classes', 'Encapsulation'],
-      weakTopics: [],
-      recentScore: 95
-    },
-    {
-      course: 'Computer Networks',
-      masteryPercentage: 70,
-      topicsCompleted: 4,
-      totalTopics: 6,
-      strongTopics: ['OSI Layers', 'IP Addressing'],
-      weakTopics: ['TCP 3-Way Handshake', 'Congestion Window'],
-      recentScore: 75
-    }
-  ],
-  recentActivities: [
-    {
-      id: 'act-1',
-      title: 'Practiced OS Deadlocks & Coffman Conditions Quiz',
-      type: 'quiz',
-      timestamp: '2 hours ago',
-      resultSnippet: 'Score: 80% (4/5 correct)'
-    },
-    {
-      id: 'act-2',
-      title: 'AI Grounded Analysis: Mean Squared Error in Linear Regression',
-      type: 'chat',
-      timestamp: 'Yesterday at 4:30 PM',
-      resultSnippet: 'Verified citations from ML_Linear_Regression.pdf (p. 4)'
-    },
-    {
-      id: 'act-3',
-      title: 'Reviewed 12 Spaced Repetition Flashcards on DBMS Normalization',
-      type: 'flashcards',
-      timestamp: '2 days ago',
-      resultSnippet: 'Mastery rating: 92%'
-    },
-    {
-      id: 'act-4',
-      title: 'Uploaded & Indexed OS — Unit 3 Deadlocks.pdf',
-      type: 'material',
-      timestamp: '3 days ago',
-      resultSnippet: '42 pages vectorized and indexed'
-    }
-  ],
+  activeDaysHistory: [],
+  totalQuestionsAnswered: 0,
+  flashcardsMastered: 0,
+  lastStudied: undefined,
+  courses: [],
+  recentActivities: [],
   activeRecommendation: {
-    title: 'Review Deadlock Detection in OS Notes',
-    description: "You've reviewed the Coffman conditions, but your last quiz indicated hesitation on Resource Allocation Graph cycle detection for single vs multi-instance resources.",
-    actionLabel: 'Practice Weak Topic',
-    targetRoute: 'quiz',
-    targetPayload: { course: 'Operating Systems', topic: 'Deadlock Detection', count: 5 },
-    reason: 'Identified as a recurring weak point in your recent OS evaluation.'
+    title: 'Welcome to CogniLens',
+    description: 'Upload your study notes or textbook PDF to begin personalized AI learning and quiz generation.',
+    actionLabel: 'Upload Material',
+    targetRoute: 'materials',
+    reason: 'Start by grounding the AI assistant in your courses.'
   }
 };
 
@@ -166,8 +80,12 @@ class ProgressService {
     if (!this.progress.lastActiveDate) {
       this.progress.lastActiveDate = today;
     }
-    if (!Array.isArray(this.progress.activeDaysHistory) || this.progress.activeDaysHistory.length === 0) {
-      this.progress.activeDaysHistory = getPastDateStrs(Math.max(1, this.progress.currentStreakDays || 6));
+    if (!Array.isArray(this.progress.activeDaysHistory)) {
+      this.progress.activeDaysHistory = [];
+    }
+    // Only backfill streak dates if streak > 0 (real streak from backend)
+    if (this.progress.activeDaysHistory.length === 0 && this.progress.currentStreakDays > 0) {
+      this.progress.activeDaysHistory = getPastDateStrs(this.progress.currentStreakDays);
     }
 
     const lastActive = this.progress.lastActiveDate;
@@ -277,9 +195,9 @@ class ProgressService {
             currentStreakDays: backendProg.currentStreakDays,
             totalQuestionsAnswered: backendProg.totalQuestionsAnswered,
             flashcardsMastered: backendProg.flashcardsMastered,
-            lastStudied: backendProg.lastStudied || this.progress.lastStudied,
-            courses: backendProg.courses && backendProg.courses.length > 0 ? backendProg.courses : this.progress.courses,
-            recentActivities: backendProg.recentActivities && backendProg.recentActivities.length > 0 ? backendProg.recentActivities : this.progress.recentActivities,
+            lastStudied: backendProg.lastStudied || undefined,
+            courses: Array.isArray(backendProg.courses) ? backendProg.courses : [],
+            recentActivities: Array.isArray(backendProg.recentActivities) ? backendProg.recentActivities : [],
           };
           this.saveProgress();
         }
@@ -374,12 +292,12 @@ class ProgressService {
     } else {
       this.progress.courses.push({
         course,
-        masteryPercentage: 65,
-        topicsCompleted: 1,
-        totalTopics: 3,
-        strongTopics: [title],
+        masteryPercentage: 0,
+        topicsCompleted: 0,
+        totalTopics: 1,
+        strongTopics: [],
         weakTopics: [],
-        recentScore: 80
+        recentScore: 0
       });
     }
 

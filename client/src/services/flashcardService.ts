@@ -1074,22 +1074,21 @@ const STORAGE_KEY = 'cognilens_flashcards_v2';
 
 class FlashcardService {
   private decks: FlashcardDeck[] = [];
-  private initialized = false;
 
-  private loadDecks(): boolean {
+  private loadDecks() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           this.decks = parsed;
-          return true;
+          return;
         }
       }
     } catch (e) {
       console.warn('Failed to load flashcards from localStorage', e);
     }
-    return false;
+    this.decks = [];
   }
 
   private saveDecks() {
@@ -1100,40 +1099,45 @@ class FlashcardService {
     }
   }
 
-  private async initializeDecks(): Promise<void> {
-    if (this.initialized) return;
-    this.initialized = true;
-
-    // Load from local storage v2 if available
-    if (this.loadDecks()) {
-      return;
+  resetDecks() {
+    this.decks = [];
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore
     }
-
-    // Default High-Yield Academic Decks
-    const defaultTopics = [
-      { topic: 'Operating Systems', count: 10 },
-      { topic: 'Data Structures', count: 10 },
-      { topic: 'Machine Learning', count: 10 },
-    ];
-
-    for (const { topic, count } of defaultTopics) {
-      const cards = generateCardsForTopic(topic, count);
-      this.decks.push({
-        id: `deck-def-${topic.toLowerCase().replace(/\s/g, '-')}`,
-        title: `${topic} In-Depth Recall Deck`,
-        course: topic,
-        description: `Comprehensive active recall cards covering high-yield principles, invariants, and exam takeaways for ${topic}.`,
-        totalCards: cards.length,
-        reviewedCount: 0,
-        cards,
-      });
-    }
-
-    this.saveDecks();
   }
 
   async getDecks(): Promise<ApiResponse<FlashcardDeck[]>> {
-    await this.initializeDecks();
+    try {
+      const backendDecks = await apiClient.getFlashcardDecks();
+      if (Array.isArray(backendDecks)) {
+        this.decks = backendDecks.map((d: any) => ({
+          id: d.id,
+          title: d.title,
+          course: d.course,
+          description: d.description || '',
+          totalCards: d.totalCards || (d.cards ? d.cards.length : 0),
+          reviewedCount: d.reviewedCount || 0,
+          cards: (d.cards || []).map((c: any) => ({
+            id: c.id,
+            topic: c.subtopic || d.title,
+            course: d.course,
+            front: c.question || c.front || '',
+            back: c.detailedAnswer || c.back || '',
+            sourceDoc: d.title,
+            sourcePage: 1,
+            confidence: (c.confidence as any) || 'good',
+            repetitionCount: c.repetitions || 0,
+          })),
+        }));
+        this.saveDecks();
+      }
+    } catch (e) {
+      console.warn('Failed to fetch flashcards from backend, using local cache', e);
+      this.loadDecks();
+    }
+
     return {
       success: true,
       data: [...this.decks],
@@ -1142,7 +1146,6 @@ class FlashcardService {
   }
 
   async generateDeckForTopic(topic: string, count: number = 5): Promise<ApiResponse<FlashcardDeck>> {
-    await this.initializeDecks();
     let newDeck: FlashcardDeck | null = null;
 
     // 1. Try Gemini AI Generation first if API key is configured
@@ -1155,36 +1158,33 @@ class FlashcardService {
       }
     }
 
-    // 2. Try Backend RAG Generator if online
+    // 2. Try Backend Generator if online
     if (!newDeck) {
-      const isOnline = await apiClient.isServerOnline();
-      if (isOnline) {
-        try {
-          const backendResp = await apiClient.generateFlashcards({ topic, num_cards: count });
-          if (backendResp?.cards?.length > 0) {
-            newDeck = {
-              id: `deck-dyn-${Date.now()}`,
-              title: backendResp.title || `${topic} Flashcard Deck`,
+      try {
+        const backendResp = await apiClient.generateFlashcards({ topic, num_cards: count });
+        if (backendResp?.cards?.length > 0) {
+          newDeck = {
+            id: `deck-dyn-${Date.now()}`,
+            title: backendResp.title || `${topic} Flashcard Deck`,
+            course: backendResp.topic || topic,
+            description: `AI generated flashcard deck for ${topic}.`,
+            totalCards: backendResp.cards.length,
+            reviewedCount: 0,
+            cards: backendResp.cards.map((c: any, idx: number) => ({
+              id: `fc-dyn-${Date.now()}-${idx}`,
+              topic: c.topic || topic,
               course: backendResp.topic || topic,
-              description: `AI generated flashcard deck for ${topic}.`,
-              totalCards: backendResp.cards.length,
-              reviewedCount: 0,
-              cards: backendResp.cards.map((c: any, idx: number) => ({
-                id: `fc-dyn-${Date.now()}-${idx}`,
-                topic: c.topic || topic,
-                course: backendResp.topic || topic,
-                front: c.front_question || c.front,
-                back: c.back_answer || c.back,
-                sourceDoc: 'Indexed Notes',
-                sourcePage: idx + 1,
-                confidence: c.difficulty === 'Easy' ? 'easy' : c.difficulty === 'Hard' ? 'hard' : 'good',
-                repetitionCount: 0,
-              })),
-            };
-          }
-        } catch (err) {
-          console.warn('Backend flashcard generation error, using rich local knowledge base:', err);
+              front: c.front_question || c.front || c.question,
+              back: c.back_answer || c.back || c.detailed_answer,
+              sourceDoc: 'Indexed Notes',
+              sourcePage: idx + 1,
+              confidence: 'unreviewed',
+              repetitionCount: 0,
+            })),
+          };
         }
+      } catch (err) {
+        console.warn('Backend flashcard generation error, generating from knowledge base:', err);
       }
     }
 
@@ -1202,20 +1202,44 @@ class FlashcardService {
       };
     }
 
+    // Persist to backend database
+    try {
+      await apiClient.saveFlashcardDeck({
+        id: newDeck.id,
+        title: newDeck.title,
+        course: newDeck.course,
+        description: newDeck.description,
+        cards: newDeck.cards.map(c => ({
+          id: c.id,
+          subtopic: c.topic,
+          question: c.front,
+          detailedAnswer: c.back,
+          confidence: c.confidence,
+          repetitions: c.repetitionCount,
+        })),
+      });
+    } catch (e) {
+      console.warn('Failed to save flashcard deck to backend database', e);
+    }
+
     this.decks.unshift(newDeck);
     this.saveDecks();
     return { success: true, data: newDeck, metadata: { latencyMs: 150 } };
   }
 
   async deleteDeck(deckId: string): Promise<ApiResponse<boolean>> {
-    await this.initializeDecks();
+    try {
+      await apiClient.deleteFlashcardDeck(deckId);
+    } catch (e) {
+      console.warn('Failed deleting flashcard deck from backend database', e);
+    }
+
     this.decks = this.decks.filter(d => d.id !== deckId);
     this.saveDecks();
     return { success: true, data: true, metadata: { latencyMs: 30 } };
   }
 
   async updateCardConfidence(deckId: string, cardId: string, confidence: FlashcardConfidence): Promise<ApiResponse<Flashcard>> {
-    await this.initializeDecks();
     const deck = this.decks.find(d => d.id === deckId);
     if (!deck) throw new Error('Deck not found');
     const card = deck.cards.find(c => c.id === cardId);
@@ -1224,6 +1248,12 @@ class FlashcardService {
     card.confidence = confidence;
     card.repetitionCount += 1;
     deck.reviewedCount = Math.min(deck.totalCards, deck.reviewedCount + 1);
+
+    try {
+      await apiClient.updateCardConfidence(deckId, cardId, confidence);
+    } catch (e) {
+      console.warn('Failed updating card confidence in database', e);
+    }
 
     this.saveDecks();
 
