@@ -1,7 +1,9 @@
 """FastAPI Endpoints for Conversational AI, Explanations, Quizzes, and Flashcards."""
 
 import logging
-from fastapi import APIRouter, HTTPException, status
+from typing import Optional
+from fastapi import APIRouter, HTTPException, status, Depends
+from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from ai.chat.chat_engine import ChatEngine, ChatMessage
@@ -19,6 +21,10 @@ from server.app.schemas.chat import (
     QuizRequest,
 )
 from server.app.services.rag_service import RAGService
+from server.app.database.connection import get_db
+from server.app.database import repository
+from server.app.api.auth import get_current_user_optional
+from server.app.models.user import UserModel
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +40,11 @@ _flashcard_gen = FlashcardGenerator(llm_provider=_llm_provider, rag_service=_rag
 
 
 @router.post("/chat", response_model=ChatResponseSchema)
-def handle_chat(request: ChatRequest) -> ChatResponseSchema:
+def handle_chat(
+    request: ChatRequest,
+    user: Optional[UserModel] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+) -> ChatResponseSchema:
     """Conversational chat endpoint with multi-turn history and adaptive intent dispatch."""
     try:
         history_msgs = []
@@ -54,6 +64,18 @@ def handle_chat(request: ChatRequest) -> ChatResponseSchema:
             forced_intent=request.intent,
             difficulty=request.difficulty,
         )
+
+        if user:
+            try:
+                repository.record_user_activity(
+                    db=db,
+                    user_id=user.id,
+                    title=f"AI Chat: {resp.topic or 'Study Assistant'}",
+                    activity_type="ai",
+                    result_snippet=resp.message[:120],
+                )
+            except Exception as log_exc:
+                logger.debug("Failed logging chat activity: %s", log_exc)
 
         return ChatResponseSchema(
             message=resp.message,
@@ -79,14 +101,30 @@ def handle_chat(request: ChatRequest) -> ChatResponseSchema:
 
 
 @router.post("/explain", response_model=ExplanationResponse)
-def handle_explain(request: ExplanationRequest) -> ExplanationResponse:
+def handle_explain(
+    request: ExplanationRequest,
+    user: Optional[UserModel] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+) -> ExplanationResponse:
     """Generate structured multi-level concept explanation grounded in course materials."""
     try:
-        return _explanation_gen.generate_explanation(
+        resp = _explanation_gen.generate_explanation(
             topic=request.topic,
             difficulty=request.difficulty,
             top_k=request.top_k,
         )
+        if user:
+            try:
+                repository.record_user_activity(
+                    db=db,
+                    user_id=user.id,
+                    title=f"Concept Explanation: {request.topic}",
+                    activity_type="ai",
+                    result_snippet=resp.explanation[:120],
+                )
+            except Exception as log_exc:
+                logger.debug("Failed logging explanation activity: %s", log_exc)
+        return resp
     except LLMError as exc:
         logger.error("LLM error in /api/explain: %s", exc)
         raise HTTPException(
@@ -102,15 +140,31 @@ def handle_explain(request: ExplanationRequest) -> ExplanationResponse:
 
 
 @router.post("/quiz", response_model=QuizResponse)
-def handle_quiz(request: QuizRequest) -> QuizResponse:
+def handle_quiz(
+    request: QuizRequest,
+    user: Optional[UserModel] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+) -> QuizResponse:
     """Generate structured multiple-choice quiz grounded in course materials."""
     try:
-        return _quiz_gen.generate_quiz(
+        resp = _quiz_gen.generate_quiz(
             topic=request.topic,
             num_questions=request.num_questions,
             difficulty=request.difficulty,
             top_k=request.top_k,
         )
+        if user:
+            try:
+                repository.record_user_activity(
+                    db=db,
+                    user_id=user.id,
+                    title=f"Generated Quiz: {request.topic}",
+                    activity_type="quiz",
+                    result_snippet=f"{len(resp.questions)} questions generated",
+                )
+            except Exception as log_exc:
+                logger.debug("Failed logging quiz activity: %s", log_exc)
+        return resp
     except LLMError as exc:
         logger.error("LLM error in /api/quiz: %s", exc)
         raise HTTPException(
@@ -126,14 +180,30 @@ def handle_quiz(request: QuizRequest) -> QuizResponse:
 
 
 @router.post("/flashcards", response_model=FlashcardResponse)
-def handle_flashcards(request: FlashcardRequest) -> FlashcardResponse:
+def handle_flashcards(
+    request: FlashcardRequest,
+    user: Optional[UserModel] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+) -> FlashcardResponse:
     """Generate structured active-recall flashcard deck grounded in course materials."""
     try:
-        return _flashcard_gen.generate_flashcards(
+        resp = _flashcard_gen.generate_flashcards(
             topic=request.topic,
             num_cards=request.num_cards,
             top_k=request.top_k,
         )
+        if user:
+            try:
+                repository.record_user_activity(
+                    db=db,
+                    user_id=user.id,
+                    title=f"Flashcards: {request.topic}",
+                    activity_type="flashcards",
+                    result_snippet=f"{len(resp.cards)} cards created",
+                )
+            except Exception as log_exc:
+                logger.debug("Failed logging flashcard activity: %s", log_exc)
+        return resp
     except LLMError as exc:
         logger.error("LLM error in /api/flashcards: %s", exc)
         raise HTTPException(

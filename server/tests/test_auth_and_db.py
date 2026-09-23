@@ -12,8 +12,15 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from server.app.main import app
+from datetime import timedelta
 from server.app.database.connection import Base, get_db
-from server.app.core.security import hash_password, verify_password, create_access_token, decode_access_token
+from server.app.core.security import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    create_refresh_token,
+    decode_access_token,
+)
 
 # In-memory SQLite with StaticPool so all connections share the same in-memory DB
 test_engine = create_engine(
@@ -38,11 +45,13 @@ app.dependency_overrides[get_db] = override_get_db
 class TestAuthAndDatabaseIsolation(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        os.environ["TESTING"] = "true"
         Base.metadata.create_all(bind=test_engine)
         cls.client = TestClient(app)
 
     @classmethod
     def tearDownClass(cls):
+        os.environ.pop("TESTING", None)
         Base.metadata.drop_all(bind=test_engine)
 
     def test_password_hashing(self):
@@ -58,6 +67,20 @@ class TestAuthAndDatabaseIsolation(unittest.TestCase):
         self.assertIsNotNone(payload)
         self.assertEqual(payload["sub"], "user-123")
         self.assertEqual(payload["email"], "test@cognilens.edu")
+        self.assertEqual(payload["type"], "access")
+
+        # Test refresh token creation and decode
+        ref_token = create_refresh_token({"sub": "user-123", "email": "test@cognilens.edu"})
+        ref_payload = decode_access_token(ref_token)
+        self.assertIsNotNone(ref_payload)
+        self.assertEqual(ref_payload["type"], "refresh")
+
+        # Test expired token returns None
+        expired_token = create_access_token(
+            {"sub": "user-123", "email": "test@cognilens.edu"},
+            expires_delta=timedelta(seconds=-10),
+        )
+        self.assertIsNone(decode_access_token(expired_token))
 
     def test_user_signup_and_login_flow(self):
         # 1. Sign up Alice
@@ -100,6 +123,24 @@ class TestAuthAndDatabaseIsolation(unittest.TestCase):
         )
         self.assertEqual(me_res.status_code, 200)
         self.assertEqual(me_res.json()["email"], "alice@cognilens.edu")
+
+        # 5. Token Verify
+        verify_res = self.client.get(
+            "/api/auth/verify",
+            headers={"Authorization": f"Bearer {alice_token}"},
+        )
+        self.assertEqual(verify_res.status_code, 200)
+        self.assertTrue(verify_res.json()["valid"])
+        self.assertEqual(verify_res.json()["user"]["email"], "alice@cognilens.edu")
+
+        # 6. Token Refresh
+        refresh_res = self.client.post(
+            "/api/auth/refresh",
+            headers={"Authorization": f"Bearer {alice_token}"},
+        )
+        self.assertEqual(refresh_res.status_code, 200)
+        self.assertIn("access_token", refresh_res.json())
+        self.assertIn("refresh_token", refresh_res.json())
 
     def test_multi_user_isolation(self):
         # 1. Register Bob

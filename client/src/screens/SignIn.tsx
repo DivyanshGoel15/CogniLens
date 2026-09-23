@@ -40,7 +40,6 @@ const SignIn: React.FC = () => {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotError, setForgotError] = useState("");
   const [forgotSuccessMsg, setForgotSuccessMsg] = useState("");
-  const [devCodeNotice, setDevCodeNotice] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -93,21 +92,21 @@ const SignIn: React.FC = () => {
 
     try {
       const res = await apiClient.forgotPassword(forgotEmail);
-      setForgotSuccessMsg(res.message || "A 6-digit verification code has been dispatched via Brevo SMTP.");
-      if (res.dev_code) {
-        setDevCodeNotice(res.dev_code);
-      }
+      setForgotSuccessMsg(
+        res.message ||
+          `A 6-digit verification code has been dispatched to ${forgotEmail}. Please check your inbox and spam folder.`
+      );
       setForgotStep(2);
     } catch (err: any) {
       const online = await apiClient.isServerOnline();
       if (!online) {
-        // Local offline development fallback
-        const offlineCode = "123456";
-        setDevCodeNotice(offlineCode);
-        setForgotSuccessMsg("Local offline mode: Backend server is offline. Use verification code 123456 to test password reset.");
-        setForgotStep(2);
+        setForgotError(
+          "Backend API server is offline. Please make sure the Python server is running (npm run dev:server) to send verification emails."
+        );
       } else {
-        setForgotError(err.message || "Failed to dispatch verification code. Please check your email.");
+        setForgotError(
+          err.message || "Failed to dispatch verification code. Please check your email and SMTP settings."
+        );
       }
     } finally {
       setForgotLoading(false);
@@ -158,7 +157,6 @@ const SignIn: React.FC = () => {
     setForgotStep(1);
     setForgotError("");
     setForgotSuccessMsg("");
-    setDevCodeNotice(null);
     setResetCode("");
     setNewPassword("");
     setConfirmNewPassword("");
@@ -450,12 +448,16 @@ const SignIn: React.FC = () => {
                   </div>
                 )}
 
-                {devCodeNotice && (
-                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300 flex items-center justify-between">
-                    <span>Developer Verification Code:</span>
-                    <strong className="font-mono text-sm tracking-widest text-emerald-200">{devCodeNotice}</strong>
+                <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 p-3.5 text-xs text-blue-200/90 leading-relaxed flex items-start gap-2.5">
+                  <Mail size={16} className="text-blue-400 mt-0.5 shrink-0" />
+                  <div>
+                    <span>Verification code sent to </span>
+                    <strong className="text-white font-medium">{forgotEmail}</strong>.
+                    <div className="mt-1 text-slate-400 text-[11px] leading-normal">
+                      Didn't see it? Please check your <span className="text-amber-300 font-medium">Spam / Junk</span> or Promotions folder.
+                    </div>
                   </div>
-                )}
+                </div>
 
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-slate-300">
@@ -538,6 +540,17 @@ const SignIn: React.FC = () => {
                     ) : (
                       <span>Reset Password</span>
                     )}
+                  </button>
+                </div>
+
+                <div className="text-center pt-1">
+                  <button
+                    type="button"
+                    disabled={forgotLoading}
+                    onClick={handleRequestResetCode}
+                    className="text-xs text-slate-400 hover:text-blue-400 transition underline underline-offset-4 disabled:opacity-50"
+                  >
+                    Didn't receive email? Resend code
                   </button>
                 </div>
               </form>
