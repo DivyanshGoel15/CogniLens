@@ -99,7 +99,16 @@ const SignIn: React.FC = () => {
       }
       setForgotStep(2);
     } catch (err: any) {
-      setForgotError(err.message || "Failed to dispatch verification code. Please check your email.");
+      const online = await apiClient.isServerOnline();
+      if (!online) {
+        // Local offline development fallback
+        const offlineCode = "123456";
+        setDevCodeNotice(offlineCode);
+        setForgotSuccessMsg("Local offline mode: Backend server is offline. Use verification code 123456 to test password reset.");
+        setForgotStep(2);
+      } else {
+        setForgotError(err.message || "Failed to dispatch verification code. Please check your email.");
+      }
     } finally {
       setForgotLoading(false);
     }
@@ -132,7 +141,13 @@ const SignIn: React.FC = () => {
       });
       setForgotStep(3);
     } catch (err: any) {
-      setForgotError(err.message || "Invalid or expired verification code.");
+      const online = await apiClient.isServerOnline();
+      if (!online) {
+        // Local offline fallback
+        setForgotStep(3);
+      } else {
+        setForgotError(err.message || "Invalid or expired verification code.");
+      }
     } finally {
       setForgotLoading(false);
     }

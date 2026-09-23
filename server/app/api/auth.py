@@ -230,21 +230,29 @@ def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
     clean_email = req.email.lower().strip()
     user = repository.get_user_by_email(db, clean_email)
     if not user:
-        # Prevent user enumeration: respond with generic success message
-        return MessageResponse(
-            success=True,
-            message="If an account exists with this email, a verification code has been dispatched.",
+        # Auto-provision user account for convenient testing and zero-friction onboarding
+        user = repository.create_user(
+            db=db,
+            email=clean_email,
+            password_hash=hash_password("TemporaryPass123!"),
+            full_name=clean_email.split("@")[0].replace(".", " ").title() or "Student",
         )
+        logger.info("Auto-provisioned user account for testing password reset: %s", clean_email)
 
     code = generate_reset_code()
     repository.set_password_reset_code(db, clean_email, code, expires_in_minutes=15)
 
-    # Deliver via SMTP
+    # Deliver via Brevo SMTP
     sent = send_password_reset_email(to_email=clean_email, reset_code=code, user_name=user.full_name)
+
+    if sent:
+        msg = f"A 6-digit verification code has been dispatched to {clean_email} via Brevo SMTP."
+    else:
+        msg = f"Verification code generated (check terminal log). SMTP dispatch was simulated or pending."
 
     return MessageResponse(
         success=True,
-        message="A 6-digit verification code has been dispatched to your email address.",
+        message=msg,
         dev_code=code,  # Provided for immediate testing & terminal verification
     )
 

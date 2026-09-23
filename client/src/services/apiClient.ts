@@ -182,30 +182,72 @@ class APIClient {
   }
 
   async forgotPassword(email: string): Promise<{ success: boolean; message: string; dev_code?: string }> {
-    const res = await fetch(`${this.baseUrl}/auth/forgot-password`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+    } catch {
+      throw new Error('Backend server is offline or unreachable. Please verify Python API server is running on port 8000.');
+    }
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Failed to request reset.' }));
-      throw new Error(err.detail || 'Failed to dispatch reset code.');
+      let detail = '';
+      try {
+        const errJson = await res.json();
+        if (typeof errJson.detail === 'string') {
+          detail = errJson.detail;
+        } else if (Array.isArray(errJson.detail)) {
+          detail = errJson.detail.map((d: any) => d.msg || JSON.stringify(d)).join(', ');
+        } else if (errJson.message) {
+          detail = errJson.message;
+        }
+      } catch {
+        if (res.status >= 500) {
+          detail = 'Backend API server on port 8000 is unreachable. Please ensure the Python server is running.';
+        }
+      }
+      throw new Error(detail || `Failed to dispatch reset code (HTTP ${res.status}).`);
     }
 
     return await res.json();
   }
 
   async resetPassword(payload: { email: string; code: string; newPassword: string }): Promise<{ success: boolean; message: string }> {
-    const res = await fetch(`${this.baseUrl}/auth/reset-password`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: payload.email.trim(),
+          code: payload.code.trim(),
+          newPassword: payload.newPassword,
+        }),
+      });
+    } catch {
+      throw new Error('Backend server is offline or unreachable. Please verify Python API server is running on port 8000.');
+    }
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Invalid reset code.' }));
-      throw new Error(err.detail || 'Password reset failed.');
+      let detail = '';
+      try {
+        const errJson = await res.json();
+        if (typeof errJson.detail === 'string') {
+          detail = errJson.detail;
+        } else if (Array.isArray(errJson.detail)) {
+          detail = errJson.detail.map((d: any) => d.msg || JSON.stringify(d)).join(', ');
+        } else if (errJson.message) {
+          detail = errJson.message;
+        }
+      } catch {
+        if (res.status >= 500) {
+          detail = 'Backend API server on port 8000 is unreachable.';
+        }
+      }
+      throw new Error(detail || `Password reset failed (HTTP ${res.status}).`);
     }
 
     return await res.json();
