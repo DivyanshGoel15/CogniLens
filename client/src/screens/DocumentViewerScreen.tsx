@@ -737,6 +737,7 @@ export const DocumentViewerScreen: React.FC = () => {
           onClose={() => setShowDiagramModal(false)}
           textContent={getPageTextContent(activePage) || activeMaterial.textContent || activeMaterial.topics.join(', ')}
           topic={activeMaterial.topics[(activePage - 1) % (activeMaterial.topics.length || 1)] || activeMaterial.title}
+          topics={activeMaterial.topics}
           filename={activeMaterial.filename}
         />
       )}

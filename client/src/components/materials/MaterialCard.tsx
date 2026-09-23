@@ -207,6 +207,7 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({ material, onDelete }
           onClose={() => setShowDiagramModal(false)}
           textContent={material.textContent || material.contentPreview || material.topics.join(', ')}
           topic={material.topics[0] || material.title}
+          topics={material.topics}
           filename={material.filename}
         />
       )}

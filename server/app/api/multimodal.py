@@ -337,7 +337,8 @@ class MaterialAnalysisResponse(BaseModel):
 class GenerateDiagramRequest(BaseModel):
     text_content: str
     topic: Optional[str] = None
-    diagram_type: Optional[str] = "flowchart"  # flowchart | mindmap | sequence | class
+    diagram_type: Optional[str] = "flowchart"  # flowchart | mindmap | sequence | stateDiagram | class
+    direction: Optional[str] = "TD"  # TD | LR
 
 
 class GenerateDiagramResponse(BaseModel):
@@ -379,39 +380,42 @@ async def analyze_material(
             import httpx
             import json
 
-            model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
+            models_to_try = ["gemini-flash-latest", "gemini-3.1-flash-lite", "gemini-2.5-flash-lite", "gemini-3.5-flash"]
+            for model in models_to_try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
+                payload = {
+                    "systemInstruction": {"parts": [{"text": system_prompt}]},
+                    "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+                    "generationConfig": {"temperature": 0.3, "responseMimeType": "application/json"},
+                }
 
-            payload = {
-                "systemInstruction": {"parts": [{"text": system_prompt}]},
-                "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
-                "generationConfig": {"temperature": 0.3, "responseMimeType": "application/json"},
-            }
-
-            async with httpx.AsyncClient(timeout=45.0) as client:
-                res = await client.post(url, json=payload)
-                if res.status_code == 200:
-                    data = res.json()
-                    text = data["candidates"][0]["content"]["parts"][0]["text"]
-                    parsed = json.loads(text)
-                    resp = MaterialAnalysisResponse(
-                        summary=parsed.get("summary", "Material analysis complete."),
-                        key_concepts=parsed.get("key_concepts", ["Key concepts extracted"]),
-                        difficult_topics=parsed.get("difficult_topics", ["Complex topic identified"]),
-                        study_tips=parsed.get("study_tips", ["Review material regularly"]),
-                    )
-                    if user:
-                        try:
-                            repository.record_user_activity(
-                                db=db,
-                                user_id=user.id,
-                                title=f"Material Analysis: {request.filename or 'Document'}",
-                                activity_type="multimodal",
-                                result_snippet=resp.summary[:120],
+                try:
+                    async with httpx.AsyncClient(timeout=30.0) as client:
+                        res = await client.post(url, json=payload)
+                        if res.status_code == 200:
+                            data = res.json()
+                            text = data["candidates"][0]["content"]["parts"][0]["text"]
+                            parsed = json.loads(text)
+                            resp = MaterialAnalysisResponse(
+                                summary=parsed.get("summary", "Material analysis complete."),
+                                key_concepts=parsed.get("key_concepts", ["Key concepts extracted"]),
+                                difficult_topics=parsed.get("difficult_topics", ["Complex topic identified"]),
+                                study_tips=parsed.get("study_tips", ["Review material regularly"]),
                             )
-                        except Exception:
-                            pass
-                    return resp
+                            if user:
+                                try:
+                                    repository.record_user_activity(
+                                        db=db,
+                                        user_id=user.id,
+                                        title=f"Material Analysis: {request.filename or 'Document'}",
+                                        activity_type="multimodal",
+                                        result_snippet=resp.summary[:120],
+                                    )
+                                except Exception:
+                                    pass
+                            return resp
+                except Exception as inner_e:
+                    logger.debug("Model %s failed in analyze_material: %s", model, inner_e)
         except Exception as e:
             logger.warning("Gemini material analysis error: %s", e)
 
@@ -444,90 +448,149 @@ async def generate_diagram_from_text(
     user: Optional[UserModel] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
-    """Generate a Mermaid.js concept diagram from text content to help visualize difficult topics."""
-    gemini_key = os.getenv("GEMINI_API_KEY")
+    """Generate a topic-aligned Mermaid.js concept diagram (Flowchart, Mind Map, Sequence, State, or Class)."""
+    from server.app.services.diagram_synthesizer import generate_synthesized_diagram
 
+    gemini_key = os.getenv("GEMINI_API_KEY")
     text_snippet = request.text_content[:6000]
     topic_label = request.topic or "the given concept"
     diagram_type = request.diagram_type or "flowchart"
+    direction = request.direction or "TD"
+
+    # Specialized prompt instruction per diagram type to avoid generic boilerplate
+    type_guidelines = {
+        "mindmap": (
+            "You are creating a Mermaid native MIND MAP.\n"
+            "Format rules:\n"
+            "1. Line 1 MUST be 'mindmap'\n"
+            "2. Line 2 MUST be '  root(( Topic Name ))'\n"
+            "3. Use 2-space indentation per level. Do NOT use brackets or quotes inside leaf nodes.\n"
+            "4. Organize branches into: Core Mechanism, Conditions / Rules, Implementation / Algorithms, Failure Modes / Edge Cases.\n"
+            "5. CRITICAL: Every single branch must use actual technical terms, formulas, and components of the topic. NEVER use generic placeholders like 'Core Definitions' or 'Overview'."
+        ),
+        "sequence": (
+            "You are creating a Mermaid SEQUENCE DIAGRAM.\n"
+            "Format rules:\n"
+            "1. Start with 'sequenceDiagram' and 'autonumber'.\n"
+            "2. Declare 3-4 specific participating actors/modules (e.g., Process, Mutex, Resource Manager, State Engine).\n"
+            "3. Step through a complete message lifecycle including request, verification, state mutation, and response.\n"
+            "4. Include an 'alt ... else ... end' condition for success vs failure/block.\n"
+            "5. CRITICAL: Name real domain actors and real actions. NO generic 'Participant A'."
+        ),
+        "stateDiagram": (
+            "You are creating a Mermaid STATE MACHINE (stateDiagram-v2).\n"
+            "Format rules:\n"
+            "1. Start with 'stateDiagram-v2'.\n"
+            "2. Define transitions from '[*] --> InitialState' to intermediate states and terminal states.\n"
+            "3. Label transitions with triggers and conditions (e.g., 'Allocated --> Waiting : LockBusy').\n"
+            "4. CRITICAL: Use the real lifecycle states of the topic."
+        ),
+        "class": (
+            "You are creating a Mermaid CLASS DIAGRAM (classDiagram).\n"
+            "Format rules:\n"
+            "1. Start with 'classDiagram'.\n"
+            "2. Model 3-4 key classes with concrete attributes (+type name) and methods (+methodName()).\n"
+            "3. Show real relationships ('-->' or '--*' or '..|>')."
+        ),
+        "flowchart": (
+            f"You are creating a Mermaid FLOWCHART (flowchart {direction}).\n"
+            "Format rules:\n"
+            f"1. Start with 'flowchart {direction}'.\n"
+            "2. Group operations into 2-3 named subgraphs representing logical stages.\n"
+            "3. Include at least 1 decision diamond with {Condition?} and branching paths (-->|Yes| and -->|No|).\n"
+            "4. Wrap all node labels in double quotes, e.g. A[\"Label Text\"].\n"
+            "5. Add modern styling lines (e.g. style A fill:#2563eb,stroke:#1d4ed8,color:#fff).\n"
+            "6. CRITICAL: NEVER use generic labels like 'Step 1' or 'Overview'. Every node must feature specific algorithms, formulas, decisions, or terms from the text."
+        ),
+    }
+
+    selected_guideline = type_guidelines.get(diagram_type, type_guidelines["flowchart"])
 
     system_prompt = (
-        "You are CogniLens Diagram Generator AI. You create clear, educational Mermaid.js diagrams.\n"
-        "Given academic text, produce a Mermaid.js diagram that visually explains the core concepts.\n\n"
-        "RULES:\n"
-        "- Output ONLY a valid JSON object with keys: \"mermaid_code\" (string), \"title\" (string), \"description\" (string).\n"
-        "- The mermaid_code must be valid Mermaid.js syntax.\n"
-        "- Use clear, readable node labels (no special characters that break Mermaid).\n"
-        "- Prefer flowchart TD (top-down) for process flows, mindmap for concept maps.\n"
-        "- Keep diagrams focused: 6-15 nodes maximum for clarity.\n"
-        "- Use subgraphs to group related concepts when helpful.\n"
-        "- The title should be concise (max 8 words).\n"
-        "- The description should be 1-2 sentences explaining what the diagram shows."
+        "You are CogniLens Advanced Diagram Generator AI.\n"
+        "Your mission is to generate deeply topic-aligned, highly educational Mermaid.js diagrams.\n"
+        "OUTPUT FORMAT: Return ONLY a valid JSON object with keys: \"mermaid_code\" (string), \"title\" (string), \"description\" (string).\n\n"
+        f"DIAGRAM SPECIFICATION:\n{selected_guideline}\n\n"
+        "SYNTAX SAFETY:\n"
+        "- Do NOT enclose mermaid_code in triple backticks.\n"
+        "- The mermaid_code must be immediately renderable by Mermaid.js without errors."
     )
 
-    user_prompt = f"Create a {diagram_type} Mermaid.js diagram for the topic: \"{topic_label}\".\n\nSource text:\n{text_snippet}"
+    user_prompt = f"Create a topic-specific {diagram_type} diagram for: \"{topic_label}\".\n\nStudy Material Context:\n{text_snippet}"
 
     if gemini_key:
         try:
             import httpx
             import json
 
-            model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+            model = "gemini-flash-latest"
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
-
             payload = {
                 "systemInstruction": {"parts": [{"text": system_prompt}]},
                 "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
-                "generationConfig": {"temperature": 0.3, "responseMimeType": "application/json"},
+                "generationConfig": {"temperature": 0.25, "responseMimeType": "application/json"},
             }
 
-            async with httpx.AsyncClient(timeout=45.0) as client:
-                res = await client.post(url, json=payload)
-                if res.status_code == 200:
-                    data = res.json()
-                    text = data["candidates"][0]["content"]["parts"][0]["text"]
-                    parsed = json.loads(text)
-                    resp = GenerateDiagramResponse(
-                        mermaid_code=parsed.get("mermaid_code", "flowchart TD\n  A[Start] --> B[End]"),
-                        title=parsed.get("title", f"Concept Diagram: {topic_label}"),
-                        description=parsed.get("description", f"Visual representation of {topic_label}."),
-                    )
-                    if user:
-                        try:
-                            repository.record_user_activity(
-                                db=db,
-                                user_id=user.id,
-                                title=f"Diagram Generated: {resp.title}",
-                                activity_type="multimodal",
-                                result_snippet=resp.description[:120],
+            try:
+                async with httpx.AsyncClient(timeout=3.5) as client:
+                    res = await client.post(url, json=payload)
+                    if res.status_code == 200:
+                        data = res.json()
+                        text = data["candidates"][0]["content"]["parts"][0]["text"]
+                        parsed = json.loads(text)
+                        raw_code = parsed.get("mermaid_code", "")
+
+                        clean_code = (
+                            raw_code.replace("```mermaid", "")
+                            .replace("```", "")
+                            .strip()
+                        )
+
+                        if clean_code and ("flowchart" in clean_code or "mindmap" in clean_code or "sequenceDiagram" in clean_code or "stateDiagram" in clean_code or "classDiagram" in clean_code):
+                            resp = GenerateDiagramResponse(
+                                mermaid_code=clean_code,
+                                title=parsed.get("title", f"{diagram_type.title()} of {topic_label}"),
+                                description=parsed.get("description", f"Visual representation of {topic_label}."),
                             )
-                        except Exception:
-                            pass
-                    return resp
+                            if user:
+                                try:
+                                    repository.record_user_activity(
+                                        db=db,
+                                        user_id=user.id,
+                                        title=f"Diagram Generated: {resp.title}",
+                                        activity_type="multimodal",
+                                        result_snippet=resp.description[:120],
+                                    )
+                                except Exception:
+                                    pass
+                            return resp
+            except Exception as inner_e:
+                logger.debug("Model %s failed or timed out in generate_diagram: %s", model, inner_e)
         except Exception as e:
             logger.warning("Gemini diagram generation error: %s", e)
 
-    # Fallback: generate a simple structured diagram
-    safe_topic = topic_label.replace('"', "'")
-    fallback_mermaid = (
-        f"flowchart TD\n"
-        f"    A[\"{safe_topic}\"] --> B[\"Core Definitions\"]\n"
-        f"    A --> C[\"Key Properties\"]\n"
-        f"    A --> D[\"Applications\"]\n"
-        f"    B --> E[\"Terminology & Scope\"]\n"
-        f"    B --> F[\"Formal Notation\"]\n"
-        f"    C --> G[\"Invariants & Constraints\"]\n"
-        f"    C --> H[\"Edge Cases\"]\n"
-        f"    D --> I[\"Problem Solving\"]\n"
-        f"    D --> J[\"Exam Relevance\"]\n"
-        f"    style A fill:#2563eb,stroke:#1d4ed8,color:#fff\n"
-        f"    style B fill:#7c3aed,stroke:#6d28d9,color:#fff\n"
-        f"    style C fill:#059669,stroke:#047857,color:#fff\n"
-        f"    style D fill:#d97706,stroke:#b45309,color:#fff"
+    # Topic-Aligned Intelligent Fallback Synthesizer (Zero Generic Boilerplate)
+    synth_code, synth_title, synth_desc = generate_synthesized_diagram(
+        topic=topic_label,
+        text_content=text_snippet,
+        diagram_type=diagram_type,
+        direction=direction,
     )
 
+    if user:
+        try:
+            repository.record_user_activity(
+                db=db,
+                user_id=user.id,
+                title=f"Diagram Generated: {synth_title}",
+                activity_type="multimodal",
+                result_snippet=synth_desc[:120],
+            )
+        except Exception:
+            pass
+
     return GenerateDiagramResponse(
-        mermaid_code=fallback_mermaid,
-        title=f"Concept Map: {topic_label}",
-        description=f"Visual breakdown of key concepts and relationships in {topic_label}.",
+        mermaid_code=synth_code,
+        title=synth_title,
+        description=synth_desc,
     )

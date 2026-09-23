@@ -1,4 +1,5 @@
 import { getGeminiApiKey } from '../components/ai-tutor/ApiKeySetup';
+import { generateClientSynthesizedDiagram } from './diagramSynthesizer';
 
 export interface VisionSlide {
   title: string;
@@ -520,48 +521,74 @@ You must respond with ONLY a valid JSON object matching this exact structure:
   async generateDiagramFromText(
     textContent: string,
     topic?: string,
-    diagramType: string = 'flowchart'
+    diagramType: string = 'flowchart',
+    direction: string = 'TD'
   ): Promise<{ mermaid_code: string; title: string; description: string }> {
-    // 1. Try backend
+    // 1. Try backend FastAPI endpoint first
     try {
       const res = await fetch('/api/multimodal/generate-diagram-from-text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text_content: textContent, topic, diagram_type: diagramType })
+        body: JSON.stringify({
+          text_content: textContent,
+          topic,
+          diagram_type: diagramType,
+          direction
+        })
       });
-      if (res.ok) return await res.json();
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.mermaid_code) return data;
+      }
     } catch (e) {
       console.warn('Backend generate-diagram not reachable:', e);
     }
 
-    // 2. Try Gemini directly
+    // 2. Try Gemini directly from client with model fallbacks
     const apiKey = getGeminiApiKey();
     if (apiKey) {
-      try {
-        const url = `${GEMINI_API_BASE}/gemini-2.0-flash:generateContent?key=${apiKey}`;
-        const systemText = 'You are CogniLens Diagram Generator AI. Output ONLY valid JSON with keys: "mermaid_code" (valid Mermaid.js syntax string), "title" (string), "description" (string). Keep diagrams to 6-15 nodes. Use flowchart TD for process flows.';
-        const payload = {
-          systemInstruction: { parts: [{ text: systemText }] },
-          contents: [{ role: 'user', parts: [{ text: `Create a ${diagramType} Mermaid.js diagram for "${topic || 'the concept'}".\n\nSource text:\n${textContent.slice(0, 6000)}` }] }],
-          generationConfig: { temperature: 0.3, responseMimeType: 'application/json' }
-        };
-        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (res.ok) {
-          const data = await res.json();
-          const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (text) return JSON.parse(text);
+      const typePrompts: Record<string, string> = {
+        mindmap: 'Create a Mermaid native MIND MAP. Line 1 must be "mindmap", Line 2 must be "  root(( Topic ))". Indent 2 spaces. No brackets inside leaf nodes. Focus on real mechanisms and rules.',
+        sequence: 'Create a Mermaid SEQUENCE DIAGRAM (sequenceDiagram). Include autonumber, 3-4 specific participating actors, alt/else branches, and real action labels.',
+        stateDiagram: 'Create a Mermaid STATE MACHINE (stateDiagram-v2). Show lifecycle transitions from [*] with triggers.',
+        class: 'Create a Mermaid CLASS DIAGRAM (classDiagram). Model key entities, attributes, and relationships.',
+        flowchart: `Create a Mermaid FLOWCHART (flowchart ${direction}). Use subgraphs for phases, at least 1 decision diamond with Yes/No branches, and double quotes around labels.`
+      };
+
+      const systemText = `You are CogniLens Diagram Generator AI. Output ONLY valid JSON with keys: "mermaid_code", "title", "description". No markdown ticks inside mermaid_code. ${typePrompts[diagramType] || typePrompts.flowchart} CRITICAL: Do NOT use generic labels like "Core Definitions" or "Overview". Use specific technical terms from the text.`;
+
+      const modelsToTry = ['gemini-flash-latest', 'gemini-3.1-flash-lite'];
+      for (const model of modelsToTry) {
+        try {
+          const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`;
+          const payload = {
+            systemInstruction: { parts: [{ text: systemText }] },
+            contents: [{ role: 'user', parts: [{ text: `Create a topic-specific ${diagramType} diagram for "${topic || 'the concept'}".\n\nSource text:\n${textContent.slice(0, 6000)}` }] }],
+            generationConfig: { temperature: 0.25, responseMimeType: 'application/json' }
+          };
+          const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          if (res.ok) {
+            const data = await res.json();
+            const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) {
+              const parsed = JSON.parse(text);
+              const cleanCode = (parsed.mermaid_code || '').replace(/```mermaid/g, '').replace(/```/g, '').trim();
+              if (cleanCode) {
+                return {
+                  mermaid_code: cleanCode,
+                  title: parsed.title || `${diagramType.toUpperCase()}: ${topic || 'Concept'}`,
+                  description: parsed.description || `Visual breakdown of ${topic || 'the concept'}.`
+                };
+              }
+            }
+          }
+        } catch (e) {
+          console.warn(`Gemini model ${model} failed for diagram:`, e);
         }
-      } catch (e) {
-        console.warn('Gemini generate-diagram failed:', e);
       }
     }
 
-    // 3. Fallback
-    const safeTopic = (topic || 'Concept').replace(/"/g, "'");
-    return {
-      mermaid_code: `flowchart TD\n    A["${safeTopic}"] --> B["Core Definitions"]\n    A --> C["Key Properties"]\n    A --> D["Applications"]\n    B --> E["Terminology"]\n    B --> F["Formal Notation"]\n    C --> G["Invariants"]\n    C --> H["Edge Cases"]\n    D --> I["Problem Solving"]\n    D --> J["Exam Relevance"]\n    style A fill:#2563eb,stroke:#1d4ed8,color:#fff\n    style B fill:#7c3aed,stroke:#6d28d9,color:#fff\n    style C fill:#059669,stroke:#047857,color:#fff\n    style D fill:#d97706,stroke:#b45309,color:#fff`,
-      title: `Concept Map: ${topic || 'Topic'}`,
-      description: `Visual breakdown of key concepts and relationships in ${topic || 'the material'}.`
-    };
+    // 3. Topic-Aligned Domain Fallback Synthesizer (Zero Generic Boilerplate)
+    return generateClientSynthesizedDiagram(topic || 'Core Concept', textContent, diagramType, direction);
   }
 };
