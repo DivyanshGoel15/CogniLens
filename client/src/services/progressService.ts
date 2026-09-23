@@ -1,5 +1,6 @@
 import { LearningProgressState } from '../types/progress';
 import { ApiResponse } from './apiTypes';
+import { apiClient } from './apiClient';
 
 const getTodayDateStr = (date = new Date()): string => {
   const year = date.getFullYear();
@@ -182,6 +183,7 @@ class ProgressService {
     } catch (e) {
       console.warn('Failed to save progress to localStorage', e);
     }
+    this.syncToBackend();
   }
 
   public recordDailyActivity(activityLabel?: string): LearningProgressState {
@@ -232,7 +234,60 @@ class ProgressService {
     return { ...this.progress };
   }
 
+  public resetProgress() {
+    this.progress = { ...INITIAL_PROGRESS_STATE };
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  }
+
+  private async syncToBackend() {
+    try {
+      const isOnline = await apiClient.isServerOnline();
+      if (isOnline && apiClient.getToken()) {
+        await apiClient.updateProgress({
+          overallMastery: this.progress.overallMastery,
+          totalStudyHours: this.progress.totalStudyHours,
+          quizAccuracy: this.progress.quizAccuracy,
+          currentStreakDays: this.progress.currentStreakDays,
+          totalQuestionsAnswered: this.progress.totalQuestionsAnswered,
+          flashcardsMastered: this.progress.flashcardsMastered,
+          lastStudied: this.progress.lastStudied,
+          courses: this.progress.courses,
+        });
+      }
+    } catch (e) {
+      // Background sync, suppress errors
+    }
+  }
+
   async getProgress(): Promise<ApiResponse<LearningProgressState>> {
+    try {
+      const isOnline = await apiClient.isServerOnline();
+      if (isOnline && apiClient.getToken()) {
+        const backendProg = await apiClient.getProgress();
+        if (backendProg && typeof backendProg.overallMastery === 'number') {
+          this.progress = {
+            ...this.progress,
+            overallMastery: backendProg.overallMastery,
+            totalStudyHours: backendProg.totalStudyHours,
+            quizAccuracy: backendProg.quizAccuracy,
+            currentStreakDays: backendProg.currentStreakDays,
+            totalQuestionsAnswered: backendProg.totalQuestionsAnswered,
+            flashcardsMastered: backendProg.flashcardsMastered,
+            lastStudied: backendProg.lastStudied || this.progress.lastStudied,
+            courses: backendProg.courses && backendProg.courses.length > 0 ? backendProg.courses : this.progress.courses,
+            recentActivities: backendProg.recentActivities && backendProg.recentActivities.length > 0 ? backendProg.recentActivities : this.progress.recentActivities,
+          };
+          this.saveProgress();
+        }
+      }
+    } catch (e) {
+      console.warn('Failed fetching progress from backend, using local store', e);
+    }
+
     this.verifyStreakIntegrity();
     return {
       success: true,

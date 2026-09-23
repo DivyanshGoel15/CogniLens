@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { MaterialSource } from '../types/material';
 import { materialService } from '../services/materialService';
 import { progressService } from '../services/progressService';
+import { apiClient } from '../services/apiClient';
 import { QuizConfig } from '../types/quiz';
 import { UserProfile, INITIAL_USER_PROFILE, LearningProgressState } from '../types/progress';
 
@@ -27,8 +28,8 @@ interface AppContextType {
   currentRoute: AppRoute;
   setCurrentRoute: (route: AppRoute) => void;
   isAuthenticated: boolean;
-  login: (email: string, name?: string) => void;
-  signup: (data: { fullName: string; email: string; major?: string; academicYear?: string }) => void;
+  login: (email: string, name?: string, token?: string, profile?: any) => Promise<void>;
+  signup: (data: { fullName: string; email: string; major?: string; academicYear?: string; token?: string; profile?: any }) => Promise<void>;
   logout: () => void;
   materials: MaterialSource[];
   selectedMaterial: MaterialSource | null;
@@ -106,8 +107,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const canGoBack = routeHistory.length > 0 || currentRoute !== 'dashboard';
 
-  const login = (email: string, name?: string) => {
+  const login = async (email: string, name?: string, token?: string, profile?: any) => {
     setIsAuthenticated(true);
+    if (token) {
+      apiClient.setToken(token);
+    }
     try {
       localStorage.setItem(AUTH_KEY, JSON.stringify(true));
     } catch (e) {
@@ -116,15 +120,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (email) {
       updateUserProfile({
         email,
-        fullName: name || userProfile.fullName || 'Student Member',
-        avatarInitials: (name || userProfile.fullName || 'S').charAt(0).toUpperCase()
+        fullName: profile?.fullName || name || userProfile.fullName || 'Student Member',
+        major: profile?.major || userProfile.major || 'Computer Science',
+        academicYear: profile?.academicYear || userProfile.academicYear || 'Year 3',
+        avatarInitials: (profile?.avatarInitials || name || userProfile.fullName || 'S').charAt(0).toUpperCase(),
+        avatarBgColor: profile?.avatarBgColor || userProfile.avatarBgColor || '#3b82f6',
       });
     }
+    await refreshMaterials();
+    await refreshProgress();
     setCurrentRoute('dashboard');
   };
 
-  const signup = (data: { fullName: string; email: string; major?: string; academicYear?: string }) => {
+  const signup = async (data: { fullName: string; email: string; major?: string; academicYear?: string; token?: string; profile?: any }) => {
     setIsAuthenticated(true);
+    if (data.token) {
+      apiClient.setToken(data.token);
+    }
     try {
       localStorage.setItem(AUTH_KEY, JSON.stringify(true));
     } catch (e) {
@@ -135,15 +147,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       email: data.email,
       major: data.major || 'Computer Science',
       academicYear: data.academicYear || 'Year 3',
-      avatarInitials: data.fullName.charAt(0).toUpperCase()
+      avatarInitials: data.fullName.charAt(0).toUpperCase(),
+      avatarBgColor: data.profile?.avatarBgColor || '#3b82f6',
     });
+    await refreshMaterials();
+    await refreshProgress();
     setCurrentRoute('dashboard');
   };
 
   const logout = () => {
     setIsAuthenticated(false);
+    apiClient.setToken(null);
+    materialService.resetMaterials();
+    progressService.resetProgress();
+    setMaterials([]);
+    setSelectedMaterial(null);
+    setProgress(null);
     try {
       localStorage.setItem(AUTH_KEY, JSON.stringify(false));
+      localStorage.removeItem(USER_PROFILE_KEY);
     } catch (e) {
       console.warn('Failed to save auth state', e);
     }
@@ -220,8 +242,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   useEffect(() => {
-    refreshMaterials();
-    refreshProgress();
+    const initSession = async () => {
+      const token = apiClient.getToken();
+      if (token) {
+        try {
+          const profile = await apiClient.getProfile();
+          if (profile) {
+            updateUserProfile({
+              email: profile.email,
+              fullName: profile.fullName,
+              major: profile.major,
+              academicYear: profile.academicYear,
+              avatarInitials: profile.avatarInitials,
+              avatarBgColor: profile.avatarBgColor,
+            });
+            setIsAuthenticated(true);
+          }
+        } catch {
+          // Token expired, logout cleanly
+          logout();
+          return;
+        }
+      }
+      await refreshMaterials();
+      await refreshProgress();
+    };
+    initSession();
   }, []);
 
   const openDocumentViewer = async (materialId: string, page: number = 1) => {

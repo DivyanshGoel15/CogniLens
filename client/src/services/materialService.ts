@@ -277,32 +277,36 @@ class MaterialService {
     }
   }
 
+  resetMaterials() {
+    this.materials = [];
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  }
+
   async getMaterials(): Promise<ApiResponse<MaterialSource[]>> {
-    // Try fetching from backend first, merge with local
+    // Try fetching from backend first (reflecting Azure database user materials)
     try {
       const isOnline = await apiClient.isServerOnline();
       if (isOnline) {
         const backendDocs = await apiClient.getDocuments();
         if (backendDocs && backendDocs.length > 0) {
-          // Merge: add backend docs not already in local store
-          for (const bdoc of backendDocs) {
-            if (!this.materials.some(m => m.id === bdoc.id)) {
-              this.materials.push({
-                id: bdoc.id,
-                title: bdoc.title,
-                filename: bdoc.filename,
-                type: bdoc.type as any,
-                pagesCount: bdoc.pagesCount,
-                size: bdoc.size,
-                uploadDate: bdoc.uploadDate,
-                status: bdoc.status as any,
-                topics: bdoc.topics || [],
-                course: bdoc.course,
-                contentPreview: bdoc.contentPreview,
-                sections: bdoc.sections,
-              });
-            }
-          }
+          this.materials = backendDocs.map(bdoc => ({
+            id: bdoc.id,
+            title: bdoc.title,
+            filename: bdoc.filename,
+            type: bdoc.type as any,
+            pagesCount: bdoc.pagesCount,
+            size: bdoc.size,
+            uploadDate: bdoc.uploadDate,
+            status: bdoc.status as any,
+            topics: bdoc.topics || [],
+            course: bdoc.course,
+            contentPreview: bdoc.contentPreview,
+            sections: bdoc.sections,
+          }));
           this.saveMaterials();
         }
       }

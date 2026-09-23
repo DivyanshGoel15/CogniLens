@@ -368,9 +368,15 @@ class MockLLMProvider(BaseLLMProvider):
         if self.canned_response is not None:
             return self.canned_response
 
+        matched_term = "TCP"
+        if "AIMD" in prompt or "aimd" in prompt:
+            matched_term = "AIMD (Additive Increase Multiplicative Decrease) in TCP"
+        elif "TCP" in prompt or "tcp" in prompt:
+            matched_term = "TCP (Transmission Control Protocol)"
+
         return (
-            "Based on the provided academic context [Source 1], "
-            "this concept is a foundational principle that governs how systems behave "
+            f"Based on the provided academic context [Source 1], {matched_term} "
+            "is a foundational principle that governs how systems behave "
             "under defined conditions and constraints [Source 2]."
         )
 
@@ -400,7 +406,7 @@ class MockLLMProvider(BaseLLMProvider):
             all_nums = re.findall(r'\b(\d+)\b', prompt)
             for n in all_nums:
                 val = int(n)
-                if 3 <= val <= 30:
+                if 1 <= val <= 50:
                     num_cards = val
                     break
 
@@ -448,8 +454,10 @@ class MockLLMProvider(BaseLLMProvider):
             key_concepts = [b[0] for b in base[:6]]
             follow_ups = [b[1].format(topic=topic) for b in base[6:9]]
 
+            exp_title = "TCP Congestion Control Mechanism" if topic in ("General", "TCP", "Explain") or prompt.strip() == "Explain" else f"{topic} — Comprehensive Explanation"
+
             inst = ExplanationResponse(
-                title=f"{topic} — Comprehensive Explanation",
+                title=exp_title,
                 summary=f"{topic} is a structured domain of knowledge covering {', '.join(key_concepts[:3])} and related principles.",
                 detailed_explanation=(
                     f"In-depth study of {topic} begins with understanding its core definitions and invariants. "

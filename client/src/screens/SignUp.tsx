@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
+import { apiClient } from "../services/apiClient";
 
 const SignUp: React.FC = () => {
   const navigate = useNavigate();
@@ -18,6 +19,7 @@ const SignUp: React.FC = () => {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -60,16 +62,39 @@ const SignUp: React.FC = () => {
       return;
     }
 
-    console.log("Sign up:", formData);
+    setIsSubmitting(true);
+    setError("");
 
-    // Set auth state + full user profile in AppContext
-    signup({
-      fullName: formData.name,
-      email: formData.email,
-    });
+    try {
+      const auth = await apiClient.signup({
+        fullName: formData.name.trim(),
+        email: formData.email.trim(),
+        password: formData.password,
+      });
 
-    // Navigate directly to the protected app (user is now authenticated)
-    navigate("/app");
+      await signup({
+        fullName: auth.user.fullName,
+        email: auth.user.email,
+        token: auth.access_token,
+        profile: auth.user,
+      });
+
+      navigate("/app");
+    } catch (err: any) {
+      const online = await apiClient.isServerOnline();
+      if (!online) {
+        // Fallback for offline local development
+        await signup({
+          fullName: formData.name.trim(),
+          email: formData.email.trim(),
+        });
+        navigate("/app");
+      } else {
+        setError(err.message || "Failed to create account. Please try again.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -290,9 +315,17 @@ const SignUp: React.FC = () => {
 
               <button
                 type="submit"
-                className="w-full rounded-xl bg-blue-600 py-3.5 font-semibold transition hover:bg-blue-500 shadow-lg shadow-blue-600/25"
+                disabled={isSubmitting}
+                className="w-full rounded-xl bg-blue-600 py-3.5 font-semibold transition hover:bg-blue-500 shadow-lg shadow-blue-600/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Create Account
+                {isSubmitting ? (
+                  <>
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>Creating Account...</span>
+                  </>
+                ) : (
+                  "Create Account"
+                )}
               </button>
             </form>
 

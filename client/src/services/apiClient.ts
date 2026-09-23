@@ -1,10 +1,11 @@
 /**
  * CogniLens Backend API Client
  * Connects frontend client to Python FastAPI services (server/app/main.py)
- * at http://localhost:8000/api with automatic fallback support.
+ * at /api (via Vite proxy or direct host) with automatic authentication and multi-user isolation.
  */
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = '/api';
+const AUTH_TOKEN_KEY = 'cognilens_auth_token';
 
 export interface BackendChatMessage {
   role: string;
@@ -48,11 +49,69 @@ export interface BackendFlashcardRequest {
   top_k?: number;
 }
 
+export interface AuthUserProfile {
+  id: string;
+  email: string;
+  fullName: string;
+  major: string;
+  academicYear: string;
+  avatarInitials: string;
+  avatarBgColor: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  token_type: string;
+  user: AuthUserProfile;
+}
+
 class APIClient {
   private baseUrl: string;
+  private token: string | null = null;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
+    try {
+      this.token = localStorage.getItem(AUTH_TOKEN_KEY);
+    } catch {
+      this.token = null;
+    }
+  }
+
+  setToken(token: string | null) {
+    this.token = token;
+    try {
+      if (token) {
+        localStorage.setItem(AUTH_TOKEN_KEY, token);
+      } else {
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+      }
+    } catch (e) {
+      console.warn('Failed saving token to localStorage', e);
+    }
+  }
+
+  getToken(): string | null {
+    if (!this.token) {
+      try {
+        this.token = localStorage.getItem(AUTH_TOKEN_KEY);
+      } catch {
+        this.token = null;
+      }
+    }
+    return this.token;
+  }
+
+  private getHeaders(extraHeaders: Record<string, string> = {}): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...extraHeaders,
+    };
+    const t = this.getToken();
+    if (t) {
+      headers['Authorization'] = `Bearer ${t}`;
+    }
+    return headers;
   }
 
   /** Health check to verify if Python backend FastAPI server is online */
@@ -69,11 +128,96 @@ class APIClient {
     }
   }
 
-  /** Send chat turn to backend ChatEngine API */
+  // ============================================================================
+  // User Authentication & Forgot Password
+  // ============================================================================
+  async signup(data: {
+    fullName: string;
+    email: string;
+    password: string;
+    major?: string;
+    academicYear?: string;
+  }): Promise<AuthResponse> {
+    const res = await fetch(`${this.baseUrl}/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Registration failed.' }));
+      throw new Error(err.detail || `Signup error ${res.status}`);
+    }
+
+    const authData: AuthResponse = await res.json();
+    this.setToken(authData.access_token);
+    return authData;
+  }
+
+  async login(email: string, password: string): Promise<AuthResponse> {
+    const res = await fetch(`${this.baseUrl}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Invalid credentials.' }));
+      throw new Error(err.detail || `Login error ${res.status}`);
+    }
+
+    const authData: AuthResponse = await res.json();
+    this.setToken(authData.access_token);
+    return authData;
+  }
+
+  async getProfile(): Promise<AuthUserProfile> {
+    const res = await fetch(`${this.baseUrl}/auth/me`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    });
+
+    if (!res.ok) throw new Error('Unauthorized or session expired.');
+    return await res.json();
+  }
+
+  async forgotPassword(email: string): Promise<{ success: boolean; message: string; dev_code?: string }> {
+    const res = await fetch(`${this.baseUrl}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to request reset.' }));
+      throw new Error(err.detail || 'Failed to dispatch reset code.');
+    }
+
+    return await res.json();
+  }
+
+  async resetPassword(payload: { email: string; code: string; newPassword: string }): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`${this.baseUrl}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Invalid reset code.' }));
+      throw new Error(err.detail || 'Password reset failed.');
+    }
+
+    return await res.json();
+  }
+
+  // ============================================================================
+  // Chat & AI Generation
+  // ============================================================================
   async sendChat(payload: BackendChatRequest): Promise<BackendChatResponse> {
     const res = await fetch(`${this.baseUrl}/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.getHeaders(),
       body: JSON.stringify(payload),
     });
 
@@ -85,11 +229,10 @@ class APIClient {
     return await res.json();
   }
 
-  /** Request grounded structured quiz from backend QuizGenerator */
   async generateQuiz(payload: BackendQuizRequest): Promise<any> {
     const res = await fetch(`${this.baseUrl}/quiz`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.getHeaders(),
       body: JSON.stringify({
         topic: payload.topic,
         num_questions: payload.num_questions || 5,
@@ -106,11 +249,10 @@ class APIClient {
     return await res.json();
   }
 
-  /** Request concept explanation from backend ExplanationGenerator */
   async generateExplanation(payload: BackendExplanationRequest): Promise<any> {
     const res = await fetch(`${this.baseUrl}/explain`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.getHeaders(),
       body: JSON.stringify({
         topic: payload.topic,
         difficulty: payload.difficulty || 'Intermediate',
@@ -126,11 +268,10 @@ class APIClient {
     return await res.json();
   }
 
-  /** Request active recall flashcards from backend FlashcardGenerator */
   async generateFlashcards(payload: BackendFlashcardRequest): Promise<any> {
     const res = await fetch(`${this.baseUrl}/flashcards`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.getHeaders(),
       body: JSON.stringify({
         topic: payload.topic,
         num_cards: payload.num_cards || 5,
@@ -146,25 +287,100 @@ class APIClient {
     return await res.json();
   }
 
-  /** Fetch indexed document metadata from backend DocumentStore */
+  // ============================================================================
+  // Document Management
+  // ============================================================================
   async getDocuments(): Promise<any[]> {
-    const res = await fetch(`${this.baseUrl}/documents`, { method: 'GET' });
+    const res = await fetch(`${this.baseUrl}/documents`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    });
     if (!res.ok) throw new Error(`Backend documents error ${res.status}`);
     return await res.json();
   }
 
-  /** Upload document to backend DocumentStore */
   async uploadDocument(file: File, course: string = 'General'): Promise<any> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('course', course);
 
+    const headers: Record<string, string> = {};
+    const t = this.getToken();
+    if (t) headers['Authorization'] = `Bearer ${t}`;
+
     const res = await fetch(`${this.baseUrl}/documents/upload`, {
       method: 'POST',
+      headers,
       body: formData,
     });
 
     if (!res.ok) throw new Error(`Backend upload error ${res.status}`);
+    return await res.json();
+  }
+
+  async deleteDocument(id: string): Promise<boolean> {
+    const res = await fetch(`${this.baseUrl}/documents/${id}`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    return res.ok;
+  }
+
+  // ============================================================================
+  // Progress & Activities
+  // ============================================================================
+  async getProgress(): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/progress`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Progress error ${res.status}`);
+    return await res.json();
+  }
+
+  async updateProgress(payload: any): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/progress/update`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`Update progress error ${res.status}`);
+    return await res.json();
+  }
+
+  // ============================================================================
+  // Study Plan
+  // ============================================================================
+  async getStudyPlan(): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/study-plan`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Study plan fetch error ${res.status}`);
+    return await res.json();
+  }
+
+  async generateStudyPlan(data: {
+    courses: string[];
+    weak_topics: string[];
+    available_hours: number;
+    goal: string;
+  }): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/study-plan`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(`Study plan generation error ${res.status}`);
+    return await res.json();
+  }
+
+  async toggleStudyPlanTask(taskId: string): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/study-plan/task/${taskId}`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Task update error ${res.status}`);
     return await res.json();
   }
 }
