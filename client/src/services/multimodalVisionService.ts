@@ -462,5 +462,106 @@ You must respond with ONLY a valid JSON object matching this exact structure:
 
   isSpeechSynthesisSupported(): boolean {
     return typeof window !== 'undefined' && 'speechSynthesis' in window;
+  },
+
+  /**
+   * Analyze uploaded document/material text — returns summary, key concepts, difficult topics
+   */
+  async analyzeDocument(
+    textContent: string,
+    filename?: string,
+    course?: string
+  ): Promise<{ summary: string; key_concepts: string[]; difficult_topics: string[]; study_tips: string[] }> {
+    // 1. Try backend
+    try {
+      const res = await fetch('/api/multimodal/analyze-material', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text_content: textContent, filename, course })
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn('Backend analyze-material not reachable:', e);
+    }
+
+    // 2. Try Gemini directly
+    const apiKey = getGeminiApiKey();
+    if (apiKey) {
+      try {
+        const url = `${GEMINI_API_BASE}/gemini-2.0-flash:generateContent?key=${apiKey}`;
+        const payload = {
+          systemInstruction: { parts: [{ text: 'You are CogniLens Academic Analysis AI. Output ONLY valid JSON with keys: "summary", "key_concepts" (array), "difficult_topics" (array), "study_tips" (array).' }] },
+          contents: [{ role: 'user', parts: [{ text: `Analyze this academic material:\n\n${textContent.slice(0, 8000)}` }] }],
+          generationConfig: { temperature: 0.3, responseMimeType: 'application/json' }
+        };
+        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (res.ok) {
+          const data = await res.json();
+          const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) return JSON.parse(text);
+        }
+      } catch (e) {
+        console.warn('Gemini analyze-material failed:', e);
+      }
+    }
+
+    // 3. Fallback
+    return {
+      summary: `This material covers foundational and advanced concepts. It introduces key terminology and builds towards applied problem-solving techniques.`,
+      key_concepts: ['Core definitions and foundational terminology', 'Algorithmic procedures and methodologies', 'Mathematical formulations', 'Practical applications'],
+      difficult_topics: ['Advanced mathematical derivations', 'Edge cases and boundary analysis', 'Multi-step problem solving'],
+      study_tips: ['Break complex topics into smaller sub-problems', 'Practice with solved examples first', 'Use diagrams to understand abstract concepts']
+    };
+  },
+
+  /**
+   * Generate a Mermaid.js concept diagram from text content
+   */
+  async generateDiagramFromText(
+    textContent: string,
+    topic?: string,
+    diagramType: string = 'flowchart'
+  ): Promise<{ mermaid_code: string; title: string; description: string }> {
+    // 1. Try backend
+    try {
+      const res = await fetch('/api/multimodal/generate-diagram-from-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text_content: textContent, topic, diagram_type: diagramType })
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn('Backend generate-diagram not reachable:', e);
+    }
+
+    // 2. Try Gemini directly
+    const apiKey = getGeminiApiKey();
+    if (apiKey) {
+      try {
+        const url = `${GEMINI_API_BASE}/gemini-2.0-flash:generateContent?key=${apiKey}`;
+        const systemText = 'You are CogniLens Diagram Generator AI. Output ONLY valid JSON with keys: "mermaid_code" (valid Mermaid.js syntax string), "title" (string), "description" (string). Keep diagrams to 6-15 nodes. Use flowchart TD for process flows.';
+        const payload = {
+          systemInstruction: { parts: [{ text: systemText }] },
+          contents: [{ role: 'user', parts: [{ text: `Create a ${diagramType} Mermaid.js diagram for "${topic || 'the concept'}".\n\nSource text:\n${textContent.slice(0, 6000)}` }] }],
+          generationConfig: { temperature: 0.3, responseMimeType: 'application/json' }
+        };
+        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (res.ok) {
+          const data = await res.json();
+          const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) return JSON.parse(text);
+        }
+      } catch (e) {
+        console.warn('Gemini generate-diagram failed:', e);
+      }
+    }
+
+    // 3. Fallback
+    const safeTopic = (topic || 'Concept').replace(/"/g, "'");
+    return {
+      mermaid_code: `flowchart TD\n    A["${safeTopic}"] --> B["Core Definitions"]\n    A --> C["Key Properties"]\n    A --> D["Applications"]\n    B --> E["Terminology"]\n    B --> F["Formal Notation"]\n    C --> G["Invariants"]\n    C --> H["Edge Cases"]\n    D --> I["Problem Solving"]\n    D --> J["Exam Relevance"]\n    style A fill:#2563eb,stroke:#1d4ed8,color:#fff\n    style B fill:#7c3aed,stroke:#6d28d9,color:#fff\n    style C fill:#059669,stroke:#047857,color:#fff\n    style D fill:#d97706,stroke:#b45309,color:#fff`,
+      title: `Concept Map: ${topic || 'Topic'}`,
+      description: `Visual breakdown of key concepts and relationships in ${topic || 'the material'}.`
+    };
   }
 };

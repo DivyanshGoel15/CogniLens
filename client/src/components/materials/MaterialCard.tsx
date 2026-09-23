@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   FileText,
   Image as ImageIcon,
@@ -9,10 +9,12 @@ import {
   BookOpen,
   Calendar,
   CheckCircle,
-  Trash2
+  Trash2,
+  Network
 } from 'lucide-react';
 import { MaterialSource } from '../../types/material';
 import { useApp } from '../../context/AppContext';
+import { ConceptDiagramModal } from '../multimodal/ConceptDiagramModal';
 
 interface MaterialCardProps {
   material: MaterialSource;
@@ -21,6 +23,7 @@ interface MaterialCardProps {
 
 export const MaterialCard: React.FC<MaterialCardProps> = ({ material, onDelete }) => {
   const { openDocumentViewer, startQuiz, setCurrentRoute, setPrefilledPrompt, deleteMaterial } = useApp();
+  const [showDiagramModal, setShowDiagramModal] = useState(false);
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -178,6 +181,16 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({ material, onDelete }
         </button>
 
         <button
+          onClick={(e) => { e.stopPropagation(); setShowDiagramModal(true); }}
+          className="btn btn-secondary btn-sm"
+          style={{ flex: 1, padding: '5px 8px', fontSize: '0.75rem', gap: '4px' }}
+          title="Generate concept diagram from this material"
+        >
+          <Network size={12} color="var(--color-purple)" />
+          <span>Diagram</span>
+        </button>
+
+        <button
           onClick={handleOpenDoc}
           className="btn btn-subtle btn-sm"
           style={{ padding: '5px 8px', fontSize: '0.75rem', gap: '4px' }}
@@ -186,6 +199,17 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({ material, onDelete }
           <span>Open</span>
         </button>
       </div>
+
+      {/* Concept Diagram Modal */}
+      {showDiagramModal && (
+        <ConceptDiagramModal
+          isOpen={showDiagramModal}
+          onClose={() => setShowDiagramModal(false)}
+          textContent={material.textContent || material.contentPreview || material.topics.join(', ')}
+          topic={material.topics[0] || material.title}
+          filename={material.filename}
+        />
+      )}
     </div>
   );
 };

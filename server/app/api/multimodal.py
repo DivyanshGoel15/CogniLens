@@ -315,3 +315,219 @@ async def text_to_speech(request: TextToSpeechRequest):
     except Exception as e:
         logger.error("Text to speech error: %s", e)
         raise HTTPException(status_code=500, detail=f"Text-to-speech failed: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# Document Analysis & Text-to-Concept-Diagram Endpoints
+# ---------------------------------------------------------------------------
+
+class AnalyzeMaterialRequest(BaseModel):
+    text_content: str
+    filename: Optional[str] = None
+    course: Optional[str] = None
+
+
+class MaterialAnalysisResponse(BaseModel):
+    summary: str
+    key_concepts: List[str]
+    difficult_topics: List[str]
+    study_tips: List[str]
+
+
+class GenerateDiagramRequest(BaseModel):
+    text_content: str
+    topic: Optional[str] = None
+    diagram_type: Optional[str] = "flowchart"  # flowchart | mindmap | sequence | class
+
+
+class GenerateDiagramResponse(BaseModel):
+    mermaid_code: str
+    title: str
+    description: str
+
+
+@router.post("/analyze-material", response_model=MaterialAnalysisResponse)
+async def analyze_material(
+    request: AnalyzeMaterialRequest,
+    user: Optional[UserModel] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
+    """Analyze uploaded study material text and return structured summary, concepts, and difficult topics."""
+    gemini_key = os.getenv("GEMINI_API_KEY")
+
+    # Truncate very long documents for the API
+    text_snippet = request.text_content[:8000]
+
+    system_prompt = (
+        "You are CogniLens Academic Analysis AI. You deeply analyze study material text.\n"
+        "Output ONLY a valid JSON object with these keys:\n"
+        "\"summary\" (string, 3-5 sentence academic summary),\n"
+        "\"key_concepts\" (array of 4-8 strings, each a key concept/term with a one-line explanation),\n"
+        "\"difficult_topics\" (array of 3-5 strings, each a topic that students typically find difficult),\n"
+        "\"study_tips\" (array of 3-5 strings, each an actionable study tip for this material)."
+    )
+
+    user_prompt = f"Analyze the following academic material"
+    if request.filename:
+        user_prompt += f" from '{request.filename}'"
+    if request.course:
+        user_prompt += f" (Course: {request.course})"
+    user_prompt += f":\n\n{text_snippet}"
+
+    if gemini_key:
+        try:
+            import httpx
+            import json
+
+            model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
+
+            payload = {
+                "systemInstruction": {"parts": [{"text": system_prompt}]},
+                "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+                "generationConfig": {"temperature": 0.3, "responseMimeType": "application/json"},
+            }
+
+            async with httpx.AsyncClient(timeout=45.0) as client:
+                res = await client.post(url, json=payload)
+                if res.status_code == 200:
+                    data = res.json()
+                    text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    parsed = json.loads(text)
+                    resp = MaterialAnalysisResponse(
+                        summary=parsed.get("summary", "Material analysis complete."),
+                        key_concepts=parsed.get("key_concepts", ["Key concepts extracted"]),
+                        difficult_topics=parsed.get("difficult_topics", ["Complex topic identified"]),
+                        study_tips=parsed.get("study_tips", ["Review material regularly"]),
+                    )
+                    if user:
+                        try:
+                            repository.record_user_activity(
+                                db=db,
+                                user_id=user.id,
+                                title=f"Material Analysis: {request.filename or 'Document'}",
+                                activity_type="multimodal",
+                                result_snippet=resp.summary[:120],
+                            )
+                        except Exception:
+                            pass
+                    return resp
+        except Exception as e:
+            logger.warning("Gemini material analysis error: %s", e)
+
+    # Fallback synthesizer
+    label = request.filename or "uploaded document"
+    return MaterialAnalysisResponse(
+        summary=f"This material ({label}) covers foundational and advanced concepts relevant to the course. It introduces key terminology and builds towards applied problem-solving techniques.",
+        key_concepts=[
+            "Core definitions and foundational terminology",
+            "Algorithmic procedures and step-by-step methodologies",
+            "Mathematical formulations and complexity bounds",
+            "Practical applications and real-world case studies",
+        ],
+        difficult_topics=[
+            "Advanced mathematical derivations and proofs",
+            "Edge cases and boundary condition analysis",
+            "Multi-step algorithmic problem solving",
+        ],
+        study_tips=[
+            "Break complex topics into smaller sub-problems",
+            "Practice with solved examples before attempting unseen problems",
+            "Use diagrams and visual aids to understand abstract concepts",
+        ],
+    )
+
+
+@router.post("/generate-diagram-from-text", response_model=GenerateDiagramResponse)
+async def generate_diagram_from_text(
+    request: GenerateDiagramRequest,
+    user: Optional[UserModel] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
+    """Generate a Mermaid.js concept diagram from text content to help visualize difficult topics."""
+    gemini_key = os.getenv("GEMINI_API_KEY")
+
+    text_snippet = request.text_content[:6000]
+    topic_label = request.topic or "the given concept"
+    diagram_type = request.diagram_type or "flowchart"
+
+    system_prompt = (
+        "You are CogniLens Diagram Generator AI. You create clear, educational Mermaid.js diagrams.\n"
+        "Given academic text, produce a Mermaid.js diagram that visually explains the core concepts.\n\n"
+        "RULES:\n"
+        "- Output ONLY a valid JSON object with keys: \"mermaid_code\" (string), \"title\" (string), \"description\" (string).\n"
+        "- The mermaid_code must be valid Mermaid.js syntax.\n"
+        "- Use clear, readable node labels (no special characters that break Mermaid).\n"
+        "- Prefer flowchart TD (top-down) for process flows, mindmap for concept maps.\n"
+        "- Keep diagrams focused: 6-15 nodes maximum for clarity.\n"
+        "- Use subgraphs to group related concepts when helpful.\n"
+        "- The title should be concise (max 8 words).\n"
+        "- The description should be 1-2 sentences explaining what the diagram shows."
+    )
+
+    user_prompt = f"Create a {diagram_type} Mermaid.js diagram for the topic: \"{topic_label}\".\n\nSource text:\n{text_snippet}"
+
+    if gemini_key:
+        try:
+            import httpx
+            import json
+
+            model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
+
+            payload = {
+                "systemInstruction": {"parts": [{"text": system_prompt}]},
+                "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+                "generationConfig": {"temperature": 0.3, "responseMimeType": "application/json"},
+            }
+
+            async with httpx.AsyncClient(timeout=45.0) as client:
+                res = await client.post(url, json=payload)
+                if res.status_code == 200:
+                    data = res.json()
+                    text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    parsed = json.loads(text)
+                    resp = GenerateDiagramResponse(
+                        mermaid_code=parsed.get("mermaid_code", "flowchart TD\n  A[Start] --> B[End]"),
+                        title=parsed.get("title", f"Concept Diagram: {topic_label}"),
+                        description=parsed.get("description", f"Visual representation of {topic_label}."),
+                    )
+                    if user:
+                        try:
+                            repository.record_user_activity(
+                                db=db,
+                                user_id=user.id,
+                                title=f"Diagram Generated: {resp.title}",
+                                activity_type="multimodal",
+                                result_snippet=resp.description[:120],
+                            )
+                        except Exception:
+                            pass
+                    return resp
+        except Exception as e:
+            logger.warning("Gemini diagram generation error: %s", e)
+
+    # Fallback: generate a simple structured diagram
+    safe_topic = topic_label.replace('"', "'")
+    fallback_mermaid = (
+        f"flowchart TD\n"
+        f"    A[\"{safe_topic}\"] --> B[\"Core Definitions\"]\n"
+        f"    A --> C[\"Key Properties\"]\n"
+        f"    A --> D[\"Applications\"]\n"
+        f"    B --> E[\"Terminology & Scope\"]\n"
+        f"    B --> F[\"Formal Notation\"]\n"
+        f"    C --> G[\"Invariants & Constraints\"]\n"
+        f"    C --> H[\"Edge Cases\"]\n"
+        f"    D --> I[\"Problem Solving\"]\n"
+        f"    D --> J[\"Exam Relevance\"]\n"
+        f"    style A fill:#2563eb,stroke:#1d4ed8,color:#fff\n"
+        f"    style B fill:#7c3aed,stroke:#6d28d9,color:#fff\n"
+        f"    style C fill:#059669,stroke:#047857,color:#fff\n"
+        f"    style D fill:#d97706,stroke:#b45309,color:#fff"
+    )
+
+    return GenerateDiagramResponse(
+        mermaid_code=fallback_mermaid,
+        title=f"Concept Map: {topic_label}",
+        description=f"Visual breakdown of key concepts and relationships in {topic_label}.",
+    )

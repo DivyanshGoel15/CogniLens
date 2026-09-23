@@ -14,12 +14,14 @@ import {
   CheckCircle2,
   ArrowRight,
   Volume2,
-  VolumeX
+  VolumeX,
+  Network
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { SelectionActionHUD } from '../components/document-viewer/SelectionActionHUD';
 import { useToast } from '../context/ToastContext';
 import { multimodalVisionService } from '../services/multimodalVisionService';
+import { ConceptDiagramModal } from '../components/multimodal/ConceptDiagramModal';
 
 export const DocumentViewerScreen: React.FC = () => {
   const {
@@ -62,6 +64,8 @@ export const DocumentViewerScreen: React.FC = () => {
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const ttsStopRef = useRef<(() => void) | null>(null);
 
+  // Concept Diagram Modal state
+  const [showDiagramModal, setShowDiagramModal] = useState(false);
   useEffect(() => {
     if (selectedPage) setActivePage(selectedPage);
   }, [selectedPage]);
@@ -669,6 +673,16 @@ export const DocumentViewerScreen: React.FC = () => {
             <Layers size={14} color="var(--color-purple)" />
             <span>Review Flashcards for Material</span>
           </button>
+
+          <button
+            onClick={() => setShowDiagramModal(true)}
+            className="btn btn-secondary btn-sm"
+            style={{ justifyContent: 'flex-start', gap: '8px' }}
+            title="Generate a concept diagram for the current page content"
+          >
+            <Network size={14} color="var(--color-purple)" />
+            <span>View Concept Diagram</span>
+          </button>
         </div>
 
         {/* Key Extracted Concepts */}
@@ -717,6 +731,17 @@ export const DocumentViewerScreen: React.FC = () => {
           </button>
         </div>
       </aside>
+
+      {/* Concept Diagram Modal */}
+      {showDiagramModal && (
+        <ConceptDiagramModal
+          isOpen={showDiagramModal}
+          onClose={() => setShowDiagramModal(false)}
+          textContent={getPageTextContent(activePage) || activeMaterial.textContent || activeMaterial.topics.join(', ')}
+          topic={activeMaterial.topics[(activePage - 1) % (activeMaterial.topics.length || 1)] || activeMaterial.title}
+          filename={activeMaterial.filename}
+        />
+      )}
     </div>
   );
 };

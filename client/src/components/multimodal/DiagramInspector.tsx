@@ -17,11 +17,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
-  BookOpen
+  BookOpen,
+  Network,
+  FileText
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useToast } from '../../context/ToastContext';
 import { multimodalVisionService, VisualAnalysisResult, VisionSlide } from '../../services/multimodalVisionService';
+import { ConceptDiagramModal } from './ConceptDiagramModal';
 
 export interface DiagramItem {
   id: string;
@@ -301,6 +304,11 @@ export const DiagramInspector: React.FC = () => {
   // Voice Inquiry / Question State
   const [voiceQueryText, setVoiceQueryText] = useState<string>('');
   const [isVoiceQueryModalOpen, setIsVoiceQueryModalOpen] = useState<boolean>(false);
+
+  // Text-to-Diagram state
+  const [isTextDiagramInputOpen, setIsTextDiagramInputOpen] = useState(false);
+  const [textDiagramInput, setTextDiagramInput] = useState('');
+  const [showConceptDiagramModal, setShowConceptDiagramModal] = useState(false);
 
   const activePreset = allDiagrams.find(p => p.id === selectedPresetId) || allDiagrams[0] || DIAGRAM_PRESETS[0];
 
@@ -635,6 +643,17 @@ export const DiagramInspector: React.FC = () => {
           <button onClick={handleGenerateQuiz} className="btn btn-secondary btn-sm" style={{ gap: '6px' }}>
             <HelpCircle size={14} color="var(--color-warning)" />
             <span>Create Quiz</span>
+          </button>
+
+          {/* Text to Diagram Generator */}
+          <button
+            onClick={() => setIsTextDiagramInputOpen(true)}
+            className="btn btn-secondary btn-sm"
+            style={{ gap: '6px' }}
+            title="Generate a concept diagram from text"
+          >
+            <Network size={14} color="var(--color-purple)" />
+            <span>Text → Diagram</span>
           </button>
         </div>
       </div>
@@ -1376,6 +1395,99 @@ export const DiagramInspector: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 6. MODAL: Text Input for Text-to-Diagram */}
+      {isTextDiagramInputOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: '20px'
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              width: '100%',
+              maxWidth: '560px',
+              padding: '24px',
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-default)',
+              borderRadius: '16px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(135deg, #7c3aed, #2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Network size={18} color="#fff" />
+                </div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Text → Concept Diagram
+                </h3>
+              </div>
+              <button onClick={() => setIsTextDiagramInputOpen(false)} className="btn btn-ghost btn-sm" style={{ padding: '4px' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+              Paste or type any academic text, lecture notes, or concept description. CogniLens AI will generate an interactive concept diagram.
+            </p>
+
+            <textarea
+              className="input-text"
+              rows={6}
+              placeholder="Paste your lecture notes, concept definitions, or any academic text here...&#10;&#10;Example: A deadlock occurs when four conditions hold simultaneously: mutual exclusion, hold and wait, no preemption, and circular wait..."
+              value={textDiagramInput}
+              onChange={(e) => setTextDiagramInput(e.target.value)}
+              style={{ width: '100%', resize: 'vertical', marginBottom: '16px' }}
+            />
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setIsTextDiagramInputOpen(false)}
+                className="btn btn-secondary btn-md"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (textDiagramInput.trim().length < 10) {
+                    showToast('Text Required', 'Please enter at least a short paragraph of text.', 'error');
+                    return;
+                  }
+                  setIsTextDiagramInputOpen(false);
+                  setShowConceptDiagramModal(true);
+                }}
+                disabled={textDiagramInput.trim().length < 10}
+                className="btn btn-primary btn-md"
+                style={{ gap: '6px' }}
+              >
+                <Sparkles size={16} />
+                <span>Generate Diagram</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. ConceptDiagramModal for rendered Mermaid diagram */}
+      {showConceptDiagramModal && (
+        <ConceptDiagramModal
+          isOpen={showConceptDiagramModal}
+          onClose={() => { setShowConceptDiagramModal(false); setTextDiagramInput(''); }}
+          textContent={textDiagramInput}
+          topic={undefined}
+        />
       )}
     </div>
   );
