@@ -670,40 +670,61 @@ export const ConceptDiagramModal: React.FC<ConceptDiagramModalProps> = ({
         {simplifiedExplanation && !isGenerating && (
           <div
             style={{
-              padding: '16px 20px',
+              padding: '18px 20px',
               borderRadius: '16px',
-              backgroundColor: 'rgba(124, 58, 237, 0.08)',
-              border: '1px solid rgba(124, 58, 237, 0.25)',
+              backgroundColor: 'var(--bg-surface-subtle)',
+              border: '1px solid var(--border-default)',
+              borderLeft: '4px solid #7c3aed',
               display: 'flex',
               flexDirection: 'column',
-              gap: '10px',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.2)'
+              gap: '12px',
+              boxShadow: 'var(--shadow-sm)'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
               <div
                 style={{
-                  width: '26px',
-                  height: '26px',
+                  width: '28px',
+                  height: '28px',
                   borderRadius: '8px',
                   backgroundColor: '#7c3aed',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 2px 8px rgba(124, 58, 237, 0.4)'
+                  boxShadow: '0 2px 8px rgba(124, 58, 237, 0.35)',
+                  flexShrink: 0
                 }}
               >
-                <Lightbulb size={15} color="#ffffff" />
+                <Lightbulb size={16} color="#ffffff" />
               </div>
               <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
                 Simplified Explanation for Learners
               </h4>
-              <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 600, marginLeft: 'auto' }}>
-                Easy-to-understand breakdown
+              <span
+                style={{
+                  fontSize: '0.71875rem',
+                  color: '#7c3aed',
+                  backgroundColor: 'rgba(124, 58, 237, 0.1)',
+                  border: '1px solid rgba(124, 58, 237, 0.25)',
+                  padding: '3px 10px',
+                  borderRadius: '12px',
+                  fontWeight: 600,
+                  marginLeft: 'auto'
+                }}
+              >
+                Plain English & Analogy
               </span>
             </div>
 
-            <p style={{ fontSize: '0.84375rem', lineHeight: '1.6', color: '#e2e8f0', margin: 0 }}>
+            <p
+              style={{
+                fontSize: '0.875rem',
+                lineHeight: '1.65',
+                color: 'var(--text-primary)',
+                fontWeight: 500,
+                margin: 0
+              }}
+            >
               {simplifiedExplanation}
             </p>
 
@@ -715,16 +736,18 @@ export const ConceptDiagramModal: React.FC<ConceptDiagramModalProps> = ({
                     style={{
                       display: 'flex',
                       alignItems: 'flex-start',
-                      gap: '6px',
-                      fontSize: '0.78125rem',
-                      color: '#cbd5e1',
-                      backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                      padding: '6px 12px',
+                      gap: '7px',
+                      fontSize: '0.8125rem',
+                      fontWeight: 500,
+                      color: 'var(--text-primary)',
+                      backgroundColor: 'var(--bg-surface)',
+                      padding: '7px 12px',
                       borderRadius: '8px',
-                      border: '1px solid rgba(255, 255, 255, 0.07)'
+                      border: '1px solid var(--border-default)',
+                      boxShadow: 'var(--shadow-xs)'
                     }}
                   >
-                    <Check size={14} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <Check size={14} color="#10b981" style={{ flexShrink: 0, marginTop: '3px' }} />
                     <span>{takeaway}</span>
                   </div>
                 ))}
