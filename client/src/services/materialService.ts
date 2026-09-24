@@ -1,6 +1,7 @@
 import { MaterialSource, MaterialType } from '../types/material';
 import { ApiResponse } from './apiTypes';
 import { apiClient } from './apiClient';
+import { isBinaryOrCorruptText } from '../utils/documentParser';
 
 export const INITIAL_MATERIALS: MaterialSource[] = [];
 
@@ -95,7 +96,12 @@ class MaterialService {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
-          this.materials = parsed;
+          this.materials = parsed.map((m: any) => {
+            if (m.textContent && isBinaryOrCorruptText(m.textContent)) {
+              return { ...m, textContent: undefined };
+            }
+            return m;
+          });
           return;
         }
       }
@@ -200,14 +206,16 @@ class MaterialService {
     file: File,
     courseParam?: MaterialSource['course'],
     onProgress?: (progress: number, stage: string) => void,
-    textContent?: string
+    textContent?: string,
+    pagesCountParam?: number
   ): Promise<ApiResponse<MaterialSource>> {
     const fileType: MaterialType = file.name.endsWith('.pdf') ? 'pdf' :
                                    file.name.match(/\.(jpg|jpeg|png|webp)$/i) ? 'image' :
                                    file.name.match(/\.(ppt|pptx)$/i) ? 'slides' : 'doc';
 
-    const pages = fileType === 'pdf' ? Math.floor(Math.random() * 15) + 10 : 12;
+    const pages = pagesCountParam || (fileType === 'pdf' ? Math.floor(Math.random() * 15) + 10 : 12);
     const details = inferMaterialDetails(file.name, courseParam);
+    const cleanText = textContent && !isBinaryOrCorruptText(textContent) ? textContent : undefined;
 
     const newMaterial: MaterialSource = {
       id: `mat-${Date.now()}`,
@@ -222,7 +230,7 @@ class MaterialService {
       topics: details.topics,
       course: details.course,
       contentPreview: details.contentPreview,
-      textContent: textContent,
+      textContent: cleanText,
       sections: details.sections
     };
 

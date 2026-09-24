@@ -5,6 +5,7 @@ import { progressService } from '../../services/progressService';
 import { useApp } from '../../context/AppContext';
 import { useToast } from '../../context/ToastContext';
 import { MaterialSource } from '../../types/material';
+import { parseDocumentFile } from '../../utils/documentParser';
 
 interface MaterialUploadModalProps {
   onClose: () => void;
@@ -50,13 +51,15 @@ export const MaterialUploadModal: React.FC<MaterialUploadModalProps> = ({ onClos
 
     try {
       let textContent = '';
+      let detectedPagesCount: number | undefined = undefined;
+
       if (!selectedFile.type.startsWith('image/')) {
-        const reader = new FileReader();
-        textContent = await new Promise<string>((resolve) => {
-          reader.onload = () => resolve((reader.result as string).slice(0, 50000));
-          reader.onerror = () => resolve('');
-          reader.readAsText(selectedFile);
-        });
+        setCurrentStage('Parsing slides & structured text...');
+        const parsed = await parseDocumentFile(selectedFile);
+        textContent = parsed.text;
+        if (parsed.pagesCount && parsed.pagesCount > 0) {
+          detectedPagesCount = parsed.pagesCount;
+        }
       }
 
       const res = await materialService.uploadMaterial(
@@ -66,7 +69,8 @@ export const MaterialUploadModal: React.FC<MaterialUploadModalProps> = ({ onClos
           setUploadProgress(progress);
           setCurrentStage(stage);
         },
-        textContent
+        textContent,
+        detectedPagesCount
       );
 
       if (res.success) {

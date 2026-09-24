@@ -22,6 +22,7 @@ import { SelectionActionHUD } from '../components/document-viewer/SelectionActio
 import { useToast } from '../context/ToastContext';
 import { multimodalVisionService } from '../services/multimodalVisionService';
 import { ConceptDiagramModal } from '../components/multimodal/ConceptDiagramModal';
+import { isBinaryOrCorruptText } from '../utils/documentParser';
 
 export const DocumentViewerScreen: React.FC = () => {
   const {
@@ -149,7 +150,7 @@ export const DocumentViewerScreen: React.FC = () => {
   // Helper to extract text for the specific page
   // Helper to extract text for the specific page
   const getPageTextContent = (pageNum: number) => {
-    if (!activeMaterial?.textContent) return null;
+    if (!activeMaterial?.textContent || isBinaryOrCorruptText(activeMaterial.textContent)) return null;
     const pageMarker = `--- Page ${pageNum} ---`;
     const nextMarker = `--- Page ${pageNum + 1} ---`;
     if (activeMaterial.textContent.includes(pageMarker)) {
@@ -157,12 +158,13 @@ export const DocumentViewerScreen: React.FC = () => {
       const end = activeMaterial.textContent.includes(nextMarker)
         ? activeMaterial.textContent.indexOf(nextMarker)
         : activeMaterial.textContent.length;
-      return activeMaterial.textContent.slice(start, end).trim();
+      const extracted = activeMaterial.textContent.slice(start, end).trim();
+      return !isBinaryOrCorruptText(extracted) && extracted.length > 0 ? extracted : null;
     }
     const charsPerPage = 1200;
     const start = (pageNum - 1) * charsPerPage;
     const slice = activeMaterial.textContent.slice(start, start + charsPerPage).trim();
-    return slice.length > 20 ? slice : null;
+    return (!isBinaryOrCorruptText(slice) && slice.length > 20) ? slice : null;
   };
 
   // Helper to render dynamic, page-specific and course-specific academic text

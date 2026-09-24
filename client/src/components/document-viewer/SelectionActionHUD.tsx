@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Sparkles, Layers, HelpCircle, Copy, Check } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -88,5 +89,6 @@ export const SelectionActionHUD: React.FC<SelectionActionHUDProps> = ({
         <span>Create Quiz</span>
       </button>
     </div>
+    
   );
 };

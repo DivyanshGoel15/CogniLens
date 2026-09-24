@@ -14,6 +14,7 @@ import {
 import { MultimodalAttachment } from '../../types/chat';
 import { useApp } from '../../context/AppContext';
 import { useToast } from '../../context/ToastContext';
+import { parseDocumentFile } from '../../utils/documentParser';
 
 interface MultimodalComposerProps {
   onSendMessage: (text: string, attachments: MultimodalAttachment[]) => void;
@@ -88,33 +89,32 @@ export const MultimodalComposer: React.FC<MultimodalComposerProps> = ({
       };
       reader.readAsDataURL(file);
     } else {
-      // Read document as text for LLM context
-      reader.onload = () => {
-        const textContent = reader.result as string;
-        const fileType = file.name.endsWith('.pdf') ? 'pdf' as const : 'doc' as const;
-        const newAttachment: MultimodalAttachment = {
-          id: `att-${Date.now()}`,
-          name: file.name,
-          type: fileType,
-          size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-          mimeType: file.type,
-          textContent: textContent.slice(0, 50000), // Cap at 50k chars to avoid token overflow
-        };
-        setAttachments((prev) => [...prev, newAttachment]);
-        showToast('Document Attached', `${file.name} content extracted for analysis`, 'success');
-      };
-      reader.onerror = () => {
-        // Fallback: attach without content
-        const newAttachment: MultimodalAttachment = {
-          id: `att-${Date.now()}`,
-          name: file.name,
-          type: file.name.endsWith('.pdf') ? 'pdf' : 'doc',
-          size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-        };
-        setAttachments((prev) => [...prev, newAttachment]);
-        showToast('File Attached', `${file.name} attached (content extraction failed)`, 'info');
-      };
-      reader.readAsText(file);
+      // Parse document cleanly (PPTX, DOCX, PDF, text) for LLM context
+      parseDocumentFile(file)
+        .then((parsed) => {
+          const fileType = file.name.endsWith('.pdf') ? ('pdf' as const) : ('doc' as const);
+          const newAttachment: MultimodalAttachment = {
+            id: `att-${Date.now()}`,
+            name: file.name,
+            type: fileType,
+            size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+            mimeType: file.type,
+            textContent: parsed.text.slice(0, 50000), // Cap at 50k chars to avoid token overflow
+          };
+          setAttachments((prev) => [...prev, newAttachment]);
+          showToast('Document Attached', `${file.name} content extracted for analysis`, 'success');
+        })
+        .catch(() => {
+          // Fallback: attach without content
+          const newAttachment: MultimodalAttachment = {
+            id: `att-${Date.now()}`,
+            name: file.name,
+            type: file.name.endsWith('.pdf') ? ('pdf' as const) : ('doc' as const),
+            size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+          };
+          setAttachments((prev) => [...prev, newAttachment]);
+          showToast('File Attached', `${file.name} attached (content extraction failed)`, 'info');
+        });
     }
 
     e.target.value = '';
