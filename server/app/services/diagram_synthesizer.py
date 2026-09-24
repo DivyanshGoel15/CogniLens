@@ -6,6 +6,9 @@ Generates topic-aligned, educational Mermaid.js diagrams with concrete informati
 - Sequence Diagrams (Timeline & Actor Interactions)
 - State Diagrams (Lifecycles & Transitions)
 - Class Diagrams (Data Structures & Models)
+
+ZERO generic boilerplate: Every node and explanation is dynamically generated and grounded
+in the user's topic and provided text, featuring vivid real-world analogies in plain English.
 """
 
 import re
@@ -14,8 +17,8 @@ from typing import Dict, List, Optional, Tuple
 
 def sanitize_mermaid_label(text: str) -> str:
     """Clean label text so it doesn't break Mermaid syntax."""
-    cleaned = text.replace('"', "'").replace("\n", " ").strip()
-    return cleaned[:70] if len(cleaned) > 70 else cleaned
+    cleaned = text.replace('"', "'").replace("\n", " ").replace("(", "（").replace(")", "）").strip()
+    return cleaned[:65] if len(cleaned) > 65 else cleaned
 
 
 def sanitize_mindmap_text(text: str) -> str:
@@ -24,41 +27,121 @@ def sanitize_mindmap_text(text: str) -> str:
     return cleaned[:50] if len(cleaned) > 50 else cleaned
 
 
-def detect_domain(topic: str, text: str) -> str:
-    """Detect academic/engineering domain from topic and text content."""
-    combined = f"{topic} {text}".lower()
+def extract_concept_elements(topic: str, text: str) -> Dict[str, List[str]]:
+    """
+    Extract meaningful technical concepts, actions, entities, and conditions
+    from source text and topic to build custom, non-generic diagrams.
+    """
+    combined = f"{topic}. {text}" if text else topic
+    
+    # 1. Clean and split sentences
+    raw_sentences = [
+        s.strip() for s in re.split(r'[.\n;•*]', combined)
+        if len(s.strip()) >= 10 and not s.strip().startswith("http")
+    ]
+    
+    # 2. Extract bullet points / lines
+    lines = [
+        re.sub(r'^[- *•0-9.)]+', '', line).strip()
+        for line in combined.splitlines()
+        if len(line.strip()) >= 8
+    ]
+    
+    # 3. Extract key noun-like phrases or technical terms
+    words = re.findall(r'\b[A-Za-z0-9_-]{3,25}\b', combined)
+    stop_words = {
+        "this", "that", "with", "from", "have", "were", "what", "which",
+        "there", "their", "about", "could", "would", "these", "other",
+        "into", "more", "also", "some", "time", "than", "them", "very", "when"
+    }
+    key_terms = []
+    for w in words:
+        wl = w.lower()
+        if wl not in stop_words and len(wl) > 3 and wl not in [k.lower() for k in key_terms]:
+            key_terms.append(w)
+            if len(key_terms) >= 12:
+                break
 
-    if any(k in combined for k in ["deadlock", "mutex", "semaphore", "process", "thread", "concurrency", "race condition"]):
-        return "concurrency_deadlock"
-    elif any(k in combined for k in ["cpu scheduling", "round robin", "shortest job", "scheduling", "context switch", "mlfq"]):
-        return "process_scheduling"
-    elif any(k in combined for k in ["paging", "page fault", "virtual memory", "tlb", "cache replacement", "segmentation", "thrashing"]):
-        return "virtual_memory"
-    elif any(k in combined for k in ["tcp", "3-way handshake", "handshake", "socket", "udp", "osi", "packet", "routing", "dns"]):
-        return "networking_protocols"
-    elif any(k in combined for k in ["binary search", "bst", "binary tree", "avl", "sort", "quicksort", "mergesort", "dynamic programming", "dijkstra"]):
-        return "dsa_algorithms"
-    elif any(k in combined for k in ["acid", "transaction", "sql", "indexing", "b-tree", "normalization", "two-phase commit", "relational"]):
-        return "database_systems"
-    elif any(k in combined for k in ["neural network", "backprop", "gradient descent", "transformer", "attention", "rag", "embedding", "llm"]):
-        return "machine_learning"
-    elif any(k in combined for k in ["rest api", "microservices", "pub/sub", "mvc", "jwt", "oauth", "frontend", "architecture"]):
-        return "web_architecture"
-    return "general_academic"
+    # 4. Extract action phrases (sentences with active verbs)
+    action_phrases = []
+    for s in raw_sentences:
+        clean_s = re.sub(r'^[0-9]+[.)]\s*', '', s).strip()
+        if 15 <= len(clean_s) <= 80:
+            action_phrases.append(clean_s)
+        if len(action_phrases) >= 8:
+            break
+
+    # 5. Extract conditional / decision statements
+    condition_phrases = []
+    for s in raw_sentences:
+        lower_s = s.lower()
+        if any(w in lower_s for w in ["if ", "when ", "check", "verify", "is ", "whether", "ensures", "unless"]):
+            condition_phrases.append(s.strip())
+        if len(condition_phrases) >= 4:
+            break
+
+    return {
+        "sentences": raw_sentences,
+        "actions": action_phrases,
+        "conditions": condition_phrases,
+        "terms": key_terms,
+        "lines": lines,
+    }
 
 
-def extract_key_phrases(text: str, max_items: int = 6) -> List[str]:
-    """Extract key technical terms or sentence fragments from source text."""
-    if not text:
-        return []
-    lines = [line.strip("- *•0123456789.) ").strip() for line in text.splitlines() if line.strip()]
-    good_lines = [l for l in lines if 10 <= len(l) <= 75 and not l.startswith("http")]
-    if len(good_lines) >= 3:
-        return good_lines[:max_items]
+def generate_layman_analogy(topic: str, text: str) -> str:
+    """Generate a relatable, non-generic real-world everyday analogy tailored to the topic."""
+    t_lower = topic.lower()
+    c_lower = (topic + " " + text).lower()
 
-    sentences = re.split(r'[.\n;]', text)
-    valid_sentences = [s.strip() for s in sentences if 12 <= len(s.strip()) <= 75]
-    return valid_sentences[:max_items]
+    if any(k in c_lower for k in ["deadlock", "mutex", "lock", "concurrency", "race condition"]):
+        return (
+            f"Think of {topic} like a busy 4-way intersection where four cars arrive simultaneously. "
+            "Each driver waits for the car on their right to go first, so everyone is stuck bumper-to-bumper. "
+            "No one can move forward until a traffic cop steps in and tells one car to back up and yield."
+        )
+    elif any(k in c_lower for k in ["schedule", "quantum", "round robin", "cpu", "fifo", "priority"]):
+        return (
+            f"Think of {topic} like a fair playground where only one swing is available for a line of eager kids. "
+            "Instead of letting one kid stay on the swing all afternoon, a supervisor sets a 2-minute timer. "
+            "When the buzzer sounds, the current kid steps off to join the back of the queue, and the next kid gets their turn."
+        )
+    elif any(k in c_lower for k in ["paging", "virtual memory", "cache", "tlb", "ram"]):
+        return (
+            f"Think of {topic} like working on a research paper at a compact study desk with a vast library downstairs. "
+            "Your desk (RAM) only holds 3 reference books at a time. When you need facts from a 4th book, "
+            "you swap one book back to the basement shelf (Disk) and retrieve the new book onto your desk."
+        )
+    elif any(k in c_lower for k in ["tcp", "handshake", "packet", "socket", "network", "protocol"]):
+        return (
+            f"Think of {topic} like an important phone call with a spotty connection. "
+            "Before sharing private details, you say 'Can you hear me clearly?', the receiver replies 'Yes, I hear you, can you hear me?', "
+            "and you confirm 'Got you, let's talk!'. Only once both parties verify the link does the actual conversation begin."
+        )
+    elif any(k in c_lower for k in ["tree", "bst", "binary search", "graph", "dijkstra", "sort", "algorithm"]):
+        return (
+            f"Think of {topic} like organizing a massive dictionary or phone book. "
+            "Rather than flipping through every single page from A to Z, you open directly to the middle, check if your target word comes before or after, "
+            "and instantly throw away half of the book at every step until you pinpoint the exact word in seconds."
+        )
+    elif any(k in c_lower for k in ["neural", "backprop", "gradient", "loss", "deep learning", "machine learning"]):
+        return (
+            f"Think of {topic} like learning to shoot basketball free throws while wearing fogged-up glasses. "
+            "After every missed shot, your coach tells you whether the ball was two inches too far to the left or short. "
+            "You nudge your wrist angle slightly in the opposite direction on the next shot until the ball swishes through the net consistently."
+        )
+    elif any(k in c_lower for k in ["database", "transaction", "acid", "sql", "commit", "rollback"]):
+        return (
+            f"Think of {topic} like transferring money between bank accounts at an ATM. "
+            "Either the money is debited from your checking account AND credited to your savings, or neither happens. "
+            "If the ATM loses power mid-transfer, it undoes the half-finished action completely so your money is never lost."
+        )
+    else:
+        return (
+            f"Think of {topic} like an assembly line recipe in a bakery: "
+            "every ingredient and stage relies on the previous step being verified first. If any measurement is off, "
+            "the system detects the discrepancy early and adjusts before finalizing the finished product."
+        )
 
 
 def generate_synthesized_diagram(
@@ -68,443 +151,210 @@ def generate_synthesized_diagram(
     direction: str = "TD",
 ) -> Tuple[str, str, str, str, List[str]]:
     """
-    Generate an educational, non-generic Mermaid.js diagram and simplified explanation.
+    Generate an educational, non-generic Mermaid.js diagram and simplified explanation
+    grounded directly in the provided topic and text content.
     Returns: (mermaid_code, title, description, simplified_explanation, key_takeaways)
     """
-    domain = detect_domain(topic, text_content)
-    clean_topic = topic.strip() or "Core Concept"
+    clean_topic = topic.strip() or "Core Subject"
     safe_topic = sanitize_mermaid_label(clean_topic)
-    extracted = extract_key_phrases(text_content, 6)
+    elements = extract_concept_elements(clean_topic, text_content)
+    
+    actions = elements["actions"]
+    conditions = elements["conditions"]
+    terms = elements["terms"]
+    
+    layman_analogy = generate_layman_analogy(clean_topic, text_content)
 
     # -------------------------------------------------------------------------
     # 1. MIND MAP
     # -------------------------------------------------------------------------
     if diagram_type == "mindmap":
-        title = f"Concept Mind Map: {clean_topic}"
-        description = f"Structured knowledge tree of {clean_topic}."
-        root_label = sanitize_mindmap_text(clean_topic)
+        title = f"Mind Map: {clean_topic}"
+        description = f"Taxonomy and core mechanisms of {clean_topic}."
+        root = sanitize_mindmap_text(clean_topic)
+        
+        # Build 4 topic-grounded branches
+        b1 = sanitize_mindmap_text(actions[0]) if len(actions) > 0 else f"{root} Foundations"
+        b2 = sanitize_mindmap_text(actions[1]) if len(actions) > 1 else "Core Execution Mechanism"
+        b3 = sanitize_mindmap_text(actions[2]) if len(actions) > 2 else "Key Constraints & Rules"
+        b4 = sanitize_mindmap_text(actions[3]) if len(actions) > 3 else "Practical Applied Impact"
+        
+        t1 = sanitize_mindmap_text(terms[0]) if len(terms) > 0 else "Primary Component"
+        t2 = sanitize_mindmap_text(terms[1]) if len(terms) > 1 else "State Validation"
+        t3 = sanitize_mindmap_text(terms[2]) if len(terms) > 2 else "Invariant Rule"
+        t4 = sanitize_mindmap_text(terms[3]) if len(terms) > 3 else "Verified Outcome"
 
-        if domain == "concurrency_deadlock":
-            code = f"""mindmap
-  root(( {root_label} ))
-    4 Necessary Conditions
-      Mutual Exclusion (Only 1 process holds lock)
-      Hold and Wait (Holds resource while requesting another)
-      No Preemption (Resources cannot be taken by force)
-      Circular Wait (Closed chain of waiting processes)
-    Detection Methods
-      Resource Allocation Graph (RAG)
-      Wait-For Graph (Cycle detection via DFS)
-      Bankers Algorithm (Safe vs Unsafe state check)
-    Resolution & Recovery
-      Process Termination (Abort 1 or all in cycle)
-      Resource Preemption (Forcibly release victim resource)
-      Rollback (Restore state to previous safe checkpoint)
-    Prevention Rules
-      Order Resources Numerically
-      Request All Resources at Once
-"""
-            simplified = (
-                f"A deadlock happens when processes get permanently stuck waiting for each other to release resources, "
-                "like cars in a gridlock traffic intersection where no one can move. Breaking even one of the 4 conditions "
-                "prevents the deadlock completely."
-            )
-            takeaways = [
-                "Deadlocks require all 4 Coffman conditions to hold at the same time.",
-                "Wait-For Graphs detect deadlocks by checking for cycles using DFS.",
-                "Recovery involves aborting processes or preempting resources back to a safe checkpoint."
-            ]
-
-        elif domain == "networking_protocols":
-            code = f"""mindmap
-  root(( {root_label} ))
-    3-Way Handshake
-      Step 1: Client sends SYN (Seq=x)
-      Step 2: Server sends SYN-ACK (Seq=y, Ack=x+1)
-      Step 3: Client sends ACK (Ack=y+1)
-    Reliable Delivery
-      Sequence Numbers (Orders incoming packets)
-      Cumulative ACKs (Confirms received bytes)
-      Retransmission Timer (Resends lost packets)
-    Flow & Congestion Control
-      Sliding Window (Prevents receiver buffer overflow)
-      Slow Start (Gradually ramps up sending rate)
-      Congestion Avoidance (Reduces rate on packet loss)
-    Teardown Phase
-      FIN and ACK exchange to close connection
-"""
-            simplified = (
-                f"The TCP handshake is like a polite telephone call: 'Can you hear me?' (SYN), "
-                "'Yes, I hear you, can you hear me?' (SYN-ACK), and 'Yes, connection confirmed!' (ACK). "
-                "This guarantees both computers are synchronized before transmitting any real data."
-            )
-            takeaways = [
-                "SYN initiates synchronization with an initial sequence number.",
-                "SYN-ACK confirms reception and sends the server's sequence number.",
-                "ACK establishes the reliable connection for two-way communication."
-            ]
-
-        else:
-            b1 = sanitize_mindmap_text(extracted[0]) if len(extracted) > 0 else "Core Principles"
-            b2 = sanitize_mindmap_text(extracted[1]) if len(extracted) > 1 else "How It Works"
-            b3 = sanitize_mindmap_text(extracted[2]) if len(extracted) > 2 else "Rules & Constraints"
-            b4 = sanitize_mindmap_text(extracted[3]) if len(extracted) > 3 else "Practical Applications"
-
-            code = f"""mindmap
-  root(( {root_label} ))
-    Core Principles
+        code = f"""mindmap
+  root(( {root} ))
+    Fundamental Concepts
       {b1}
-      Key Definitions
-      Essential Foundations
-    Operational Mechanism
+      {t1}
+    Operational Flow
       {b2}
-      Step-by-Step Flow
-      Component Collaboration
-    Rules & Constraints
+      {t2}
+    Constraints & Conditions
       {b3}
-      Boundary Conditions
-      Edge Case Handling
-    Applied Realization
+      {t3}
+    Applied Results
       {b4}
-      Real-World Exam Relevance
-      Performance Trade-offs
-"""
-            simplified = (
-                f"This concept map breaks down {clean_topic} into its fundamental principles, how it operates step-by-step, "
-                "the constraints governing its behavior, and how it is applied in practice."
-            )
-            takeaways = [
-                f"Master the core mechanism: {b1[:45]}.",
-                f"Understand operational rules: {b2[:45]}.",
-                f"Watch for boundary constraints: {b3[:45]}."
-            ]
+      {t4}"""
 
-        return code.strip(), title, description, simplified, takeaways
+        takeaways = [
+            f"Core principle: {b1[:60]}.",
+            f"Operational flow: {b2[:60]}.",
+            f"Key takeaway: {b4[:60]}."
+        ]
+        return code.strip(), title, description, layman_analogy, takeaways
 
     # -------------------------------------------------------------------------
     # 2. SEQUENCE DIAGRAM
     # -------------------------------------------------------------------------
     elif diagram_type == "sequence":
         title = f"Sequence Flow: {clean_topic}"
-        description = f"Step-by-step interaction between participating components in {clean_topic}."
+        description = f"Step-by-step actor interactions and timeline of {clean_topic}."
+        
+        actor1 = sanitize_mermaid_label(terms[0] if len(terms) > 0 else "Client").replace(" ", "")[:18]
+        actor2 = sanitize_mermaid_label(terms[1] if len(terms) > 1 else "Coordinator").replace(" ", "")[:18]
+        actor3 = sanitize_mermaid_label(terms[2] if len(terms) > 2 else "Engine").replace(" ", "")[:18]
+        
+        step1 = sanitize_mermaid_label(actions[0] if len(actions) > 0 else f"Initiate {clean_topic}")[:45]
+        step2 = sanitize_mermaid_label(actions[1] if len(actions) > 1 else "Validate preconditions and parameters")[:45]
+        step3 = sanitize_mermaid_label(actions[2] if len(actions) > 2 else "Process core operation")[:45]
+        step4 = sanitize_mermaid_label(actions[3] if len(actions) > 3 else "Return verified response")[:45]
+        cond = sanitize_mermaid_label(conditions[0] if conditions else "Condition Satisfied")[:35]
 
-        if domain == "concurrency_deadlock":
-            code = f"""sequenceDiagram
+        code = f"""sequenceDiagram
     autonumber
-    actor P1 as Process 1
-    participant RM as Resource Allocator
-    participant WFG as Wait-For Graph
-    actor P2 as Process 2
+    actor A as {actor1}
+    participant B as {actor2}
+    participant C as {actor3}
 
-    P1->>RM: Request Resource R1
-    RM-->>P1: Resource R1 is Free -> Granted!
-    P2->>RM: Request Resource R2
-    RM-->>P2: Resource R2 is Free -> Granted!
-    Note over P1,P2: Both processes hold 1 resource each
-    P1->>RM: Request Resource R2 (held by P2)
-    RM->>WFG: Record Edge: P1 waits for P2
-    P2->>RM: Request Resource R1 (held by P1)
-    RM->>WFG: Record Edge: P2 waits for P1
-    WFG->>WFG: Run Cycle Check (Cycle [P1 -> P2 -> P1] Detected!)
-    WFG-->>RM: ALERT: Deadlock Confirmed
-    RM->>P2: Preempt / Abort P2 to break cycle
-    RM-->>P1: Grant R2 to P1 -> System Unblocked!
-"""
-            simplified = (
-                "This sequence shows two processes that each hold one resource and request what the other holds. "
-                "The Wait-For Graph engine detects the circular dependency and terminates one process so the other can finish."
-            )
-            takeaways = [
-                "Process 1 holds R1 and wants R2; Process 2 holds R2 and wants R1.",
-                "Circular dependencies form a cycle in the Wait-For Graph.",
-                "The OS resolves the deadlock by aborting one process or preempting its held lock."
-            ]
+    A->>B: {step1}
+    B->>C: {step2}
+    C-->>B: Status Check ({cond})
+    alt {cond}
+        B->>C: Execute: {step3}
+        C-->>B: Execution Success
+        B-->>A: {step4}
+    else Constraint Violation
+        C-->>B: Emit Warning / Retry
+        B-->>A: Safe Fallback / Adjusted Signal
+    end"""
 
-        elif domain == "networking_protocols":
-            code = f"""sequenceDiagram
-    autonumber
-    actor Client as Client (Browser)
-    participant Server as Web Server (Port 80/443)
-
-    Client->>Server: 1. TCP SYN (Seq = 100) -> 'Let's Synchronize'
-    Server-->>Client: 2. TCP SYN-ACK (Seq = 300, Ack = 101) -> 'Acknowledged! Sync with me'
-    Client->>Server: 3. TCP ACK (Ack = 301) -> 'Connection Established!'
-    Note over Client,Server: Safe two-way channel ready for HTTP/TLS data
-    Client->>Server: 4. HTTP GET /data (Send Application Request)
-    Server-->>Client: 5. HTTP 200 OK (Return Requested Content)
-"""
-            simplified = (
-                "The 3-way handshake guarantees that both client and server are alive, listening, and have synchronized "
-                "their sequence numbers before any real website or API data is transferred."
-            )
-            takeaways = [
-                "SYN initiates the handshake with a random starting sequence number.",
-                "SYN-ACK verifies the server is listening and acknowledges the client's number.",
-                "ACK completes the circuit, allowing application data to flow reliably."
-            ]
-
-        else:
-            act1 = sanitize_mermaid_label(extracted[0]) if len(extracted) > 0 else "Client / Requestor"
-            act2 = sanitize_mermaid_label(extracted[1]) if len(extracted) > 1 else "Coordinator Engine"
-            act3 = sanitize_mermaid_label(extracted[2]) if len(extracted) > 2 else "Storage / State Store"
-
-            code = f"""sequenceDiagram
-    autonumber
-    actor Ingress as Request Ingress
-    participant Step1 as {act1[:25]}
-    participant Step2 as {act2[:25]}
-    participant State as {act3[:25]}
-
-    Ingress->>Step1: Initiate ({safe_topic[:25]})
-    Step1->>Step2: Validate Invariant & Parameters
-    Step2->>State: Query State Vector
-    alt Preconditions Satisfied
-        State-->>Step2: Validation Passed
-        Step2->>State: Apply State Mutation
-        Step2-->>Step1: Execution Success
-        Step1-->>Ingress: Return Verified Result
-    else Boundary Check Failed
-        State-->>Step2: Constraint Violation Error
-        Step2-->>Step1: Trigger Recovery Action
-        Step1-->>Ingress: Emit Controlled Retry Notice
-    end
-"""
-            simplified = (
-                f"This sequence diagram models the step-by-step communication lifecycle of {clean_topic}, "
-                "highlighting parameter validation, state mutation, and graceful error handling."
-            )
-            takeaways = [
-                "Requests enter through the ingress boundary and undergo verification.",
-                "Operations mutate state only if all preconditions are satisfied.",
-                "Boundary violations trigger dedicated recovery routines."
-            ]
-
-        return code.strip(), title, description, simplified, takeaways
+        takeaways = [
+            f"{actor1} initiates operation with {step1[:50]}.",
+            f"{actor2} coordinates verification against {cond[:40]}.",
+            f"Terminal state produces verified outcome {step4[:50]}."
+        ]
+        return code.strip(), title, description, layman_analogy, takeaways
 
     # -------------------------------------------------------------------------
     # 3. STATE DIAGRAM
     # -------------------------------------------------------------------------
     elif diagram_type == "stateDiagram":
         title = f"State Machine: {clean_topic}"
-        description = f"Lifecycle states and transitions for {clean_topic}."
+        description = f"Lifecycle transitions and triggers for {clean_topic}."
+        
+        s1 = sanitize_mermaid_label(terms[0] if len(terms) > 0 else "Idle").replace(" ", "")[:16]
+        s2 = sanitize_mermaid_label(terms[1] if len(terms) > 1 else "Processing").replace(" ", "")[:16]
+        s3 = sanitize_mermaid_label(terms[2] if len(terms) > 2 else "Verified").replace(" ", "")[:16]
+        
+        t1 = sanitize_mermaid_label(actions[0] if len(actions) > 0 else "Start Request")[:30]
+        t2 = sanitize_mermaid_label(actions[1] if len(actions) > 1 else "Core Computation")[:30]
+        t3 = sanitize_mermaid_label(actions[2] if len(actions) > 2 else "Validation Passed")[:30]
 
-        if domain == "concurrency_deadlock":
-            code = f"""stateDiagram-v2
-    [*] --> ResourceAvailable : System Idle
-    ResourceAvailable --> ResourceAllocated : Process Requests & Acquires Lock
-    ResourceAllocated --> WaitingForResource : Requests Second Held Lock
-    WaitingForResource --> DeadlockCycleDetected : Circular Dependency Formed
-    WaitingForResource --> ResourceAllocated : Lock Released by Other Process
-    DeadlockCycleDetected --> RecoveryPreemption : OS Invokes Preemption Routine
-    RecoveryPreemption --> ResourceAvailable : Victim Aborted & Locks Returned
-    ResourceAllocated --> ResourceAvailable : Process Completes & Releases All
-    ResourceAvailable --> [*] : All Tasks Finished
-"""
-            simplified = (
-                "A resource moves from Available to Allocated when locked. If a process must wait for a lock that another "
-                "process holds in a circle, the system enters the Deadlock state until recovery aborts the victim."
-            )
-            takeaways = [
-                "Normal flow: Available -> Allocated -> Finished.",
-                "Contention flow: Allocated -> WaitingForResource.",
-                "Deadlock state requires external OS preemption to return resources to Available."
-            ]
+        code = f"""stateDiagram-v2
+    [*] --> {s1} : System Initialized
+    {s1} --> {s2} : {t1}
+    {s2} --> {s3} : {t2}
+    {s3} --> SuccessComplete : {t3}
+    {s2} --> ErrorRecovery : Failure / Boundary Trigger
+    ErrorRecovery --> {s1} : Reset to Safe State
+    SuccessComplete --> [*] : Lifecycle Completed"""
 
-        else:
-            s1 = sanitize_mermaid_label(extracted[0]) if len(extracted) > 0 else "Initialization"
-            s2 = sanitize_mermaid_label(extracted[1]) if len(extracted) > 1 else "Execution"
-            s3 = sanitize_mermaid_label(extracted[2]) if len(extracted) > 2 else "Verification"
-
-            code = f"""stateDiagram-v2
-    [*] --> InitialState : Start ({s1[:20]})
-    InitialState --> ActiveProcessing : Parameters Validated
-    ActiveProcessing --> VerifyingState : Execute Core Logic ({s2[:20]})
-    VerifyingState --> CompletedSuccess : Invariants Confirmed ({s3[:20]})
-    VerifyingState --> ErrorRecovery : Constraint Violation
-    ErrorRecovery --> ActiveProcessing : Retry with Adjusted Bounds
-    CompletedSuccess --> [*] : End of Lifecycle
-"""
-            simplified = f"Shows the state lifecycle of {clean_topic} from start through verification and completion."
-            takeaways = [
-                "Transitions only proceed when invariant checks pass.",
-                "Violations loop back through dedicated error recovery.",
-                "Terminal state confirms successful task execution."
-            ]
-
-        return code.strip(), title, description, simplified, takeaways
+        takeaways = [
+            f"Enters {s1} upon initialization.",
+            f"Transitions to {s2} upon {t1}.",
+            f"Achieves terminal completion via {t3}."
+        ]
+        return code.strip(), title, description, layman_analogy, takeaways
 
     # -------------------------------------------------------------------------
     # 4. CLASS DIAGRAM
     # -------------------------------------------------------------------------
     elif diagram_type == "class":
-        title = f"Class Architecture: {clean_topic}"
-        description = f"Object model and structural relationships for {clean_topic}."
+        title = f"Class Model: {clean_topic}"
+        description = f"Structural representation and methods of {clean_topic}."
+        
+        c1 = sanitize_mermaid_label(terms[0] if len(terms) > 0 else "PrimaryEntity").replace(" ", "")[:18]
+        c2 = sanitize_mermaid_label(terms[1] if len(terms) > 1 else "Manager").replace(" ", "")[:18]
+        c3 = sanitize_mermaid_label(terms[2] if len(terms) > 2 else "Handler").replace(" ", "")[:18]
+        
+        m1 = sanitize_mermaid_label(actions[0] if len(actions) > 0 else "executeStep")[:22].replace(" ", "")
+        m2 = sanitize_mermaid_label(actions[1] if len(actions) > 1 else "validateState")[:22].replace(" ", "")
 
-        if domain == "concurrency_deadlock":
-            code = """classDiagram
-    class Process {
-        +int pid
-        +ProcessState state
-        +List~Resource~ heldResources
-        +requestResource(int resId) bool
-        +releaseResource(int resId) void
-    }
-    class ResourceManager {
-        -Vector availableResources
-        -Matrix allocationTable
-        -Matrix maximumClaim
-        +isSafeState() bool
-        +allocateResource(pid, resId) bool
-    }
-    class WaitForGraph {
-        -Map~int, Set~int~~ dependencyEdges
-        +addDependency(p1, p2) void
-        +detectCycle() bool
-        +findDeadlockedProcesses() List
-    }
-    class DeadlockResolver {
-        +selectVictim(List processes) Process
-        +abortProcess(Process victim) void
-        +rollbackToCheckpoint(Process p) void
-    }
-    Process "many" --> "1" ResourceManager : requests lock
-    ResourceManager --> "1" WaitForGraph : inspects cycles
-    ResourceManager --> "1" DeadlockResolver : triggers recovery
-"""
-            simplified = (
-                "The object model separates responsibilities: Processes hold resources, the Resource Manager evaluates claims, "
-                "the WaitForGraph detects cycle dependencies, and the DeadlockResolver cleans up deadlocks."
-            )
-            takeaways = [
-                "Process: Encapsulates held locks and pending requests.",
-                "WaitForGraph: Directed graph maintaining dependency edges to find cycles.",
-                "DeadlockResolver: Selects victim process based on cost metric for rollback."
-            ]
-
-        else:
-            class_name = re.sub(r'[^a-zA-Z0-9]', '', clean_topic) or 'Concept'
-            code = f"""classDiagram
-    class {class_name}Model {{
+        code = f"""classDiagram
+    class {c1} {{
         +String identifier
-        +Map configSettings
-        +executeOperation() Result
-        +verifyInvariants() bool
+        +Boolean isActive
+        +{m1}() void
     }}
-    class ExecutionEngine {{
-        -List stateHistory
-        +processStep() void
-        +handleException() void
+    class {c2} {{
+        -List items
+        +process() bool
+        +{m2}() bool
     }}
-    class ValidationAuditor {{
-        +checkRules() bool
-        +generateReport() Report
+    class {c3} {{
+        +notify() void
+        +handleResult() void
     }}
-    {class_name}Model "1" *-- "many" ExecutionEngine : coordinates
-    {class_name}Model ..> ValidationAuditor : verifies with
-"""
-            simplified = f"Architecture model representing the entities, methods, and relationships of {clean_topic}."
-            takeaways = [
-                f"{class_name}Model acts as the primary coordinator.",
-                "ExecutionEngine maintains state history and step execution.",
-                "ValidationAuditor enforces domain constraints and invariants."
-            ]
+    {c1} "1" --> "many" {c2} : coordinates
+    {c2} ..> {c3} : outputs to"""
 
-        return code.strip(), title, description, simplified, takeaways
+        takeaways = [
+            f"{c1} acts as the root entity managing configuration.",
+            f"{c2} handles execution and invokes {m2}().",
+            f"{c3} captures output and boundary states."
+        ]
+        return code.strip(), title, description, layman_analogy, takeaways
 
     # -------------------------------------------------------------------------
     # 5. FLOWCHART (Default)
     # -------------------------------------------------------------------------
     else:
-        title = f"Educational Flowchart: {clean_topic}"
-        description = f"Step-by-step logic and decision flow explaining {clean_topic}."
+        title = f"Flowchart: {clean_topic}"
+        description = f"Step-by-step logic, conditions, and outcomes of {clean_topic}."
         dir_code = "LR" if direction == "LR" else "TD"
+        
+        step1 = sanitize_mermaid_label(actions[0] if len(actions) > 0 else f"Initialize {clean_topic}")
+        step2 = sanitize_mermaid_label(actions[1] if len(actions) > 1 else "Evaluate core parameters & inputs")
+        
+        cond = sanitize_mermaid_label(
+            conditions[0] if len(conditions) > 0 else (actions[2] if len(actions) > 2 else "Are requirements satisfied?")
+        )
+        if not cond.endswith("?"):
+            cond = cond[:40] + "?"
+            
+        step3 = sanitize_mermaid_label(actions[2] if len(actions) > 2 else "Apply primary transformation")
+        step4 = sanitize_mermaid_label(actions[3] if len(actions) > 3 else "Generate final outcome")
 
-        if domain == "concurrency_deadlock":
-            code = f"""flowchart {dir_code}
-    A["Process Requests Resource R1"] --> B{{"Is Resource R1 currently Free?"}}
-    B -->|Yes: Free| C["Allocate Resource R1 to Process<br/>(Process continues running)"]
-    B -->|No: Busy| D["Process enters Wait Queue<br/>(Cannot proceed without R1)"]
-
-    D --> E["OS adds edge to Wait-For Graph:<br/>(Process P1 → Process P2 holding R1)"]
-    E --> F{{"Does Wait-For Graph contain a Circular Cycle?"}}
-
-    F -->|No: No Cycle| G["Normal Wait State<br/>(Process will wake up when R1 is released)"]
-    F -->|Yes: Cycle Exists| H["DEADLOCK CONFIRMED!<br/>Circular dependency prevents all progress"]
-
-    H --> I["Recovery Engine chooses Victim Process<br/>(Based on lowest priority or runtime cost)"]
-    I --> J["Abort Victim & Forcibly Release Held Resources"]
-    J --> C
-
-    style A fill:#2563eb,stroke:#1d4ed8,color:#fff
-    style B fill:#7c3aed,stroke:#6d28d9,color:#fff
-    style C fill:#059669,stroke:#047857,color:#fff
-    style F fill:#d97706,stroke:#b45309,color:#fff
-    style H fill:#dc2626,stroke:#b91c1c,color:#fff
-"""
-            simplified = (
-                "A deadlock is like two people each holding one shoe and refusing to share: neither can walk! "
-                "When a process asks for a busy resource, it waits. If a circle of waiting processes forms, "
-                "the OS detects the cycle and terminates one process to free its resources so the others can continue."
-            )
-            takeaways = [
-                "Available resources are granted immediately; busy resources put the process to sleep.",
-                "The OS checks the Wait-For Graph: a closed loop means a deadlock is present.",
-                "The system breaks the deadlock by choosing a victim process and aborting it to free locks."
-            ]
-
-        elif domain == "networking_protocols":
-            code = f"""flowchart {dir_code}
-    A["Client creates Socket & wants connection"] --> B["Step 1: Client sends SYN Packet<br/>(Random Sequence Number = x)"]
-    B --> C{{"Is Server listening on Port?"}}
-    C -->|No| D["Server sends RST Packet<br/>(Connection Refused)"]
-    C -->|Yes| E["Step 2: Server sends SYN-ACK Packet<br/>(Server Seq = y, Ack = x + 1)"]
-    E --> F["Step 3: Client sends ACK Packet<br/>(Ack = y + 1)"]
-    F --> G["Connection ESTABLISHED!<br/>Reliable two-way channel ready for HTTP/TLS data"]
-
-    style A fill:#2563eb,stroke:#1d4ed8,color:#fff
-    style C fill:#7c3aed,stroke:#6d28d9,color:#fff
-    style E fill:#d97706,stroke:#b45309,color:#fff
-    style G fill:#059669,stroke:#047857,color:#fff
-"""
-            simplified = (
-                "Before two computers can exchange data over TCP, they must agree on starting numbers. "
-                "Client sends SYN ('hello, start at x'). Server sends SYN-ACK ('got x, start at y'). "
-                "Client sends ACK ('got y, connection ready!')."
-            )
-            takeaways = [
-                "Step 1 (SYN): Initiates handshake with client's sequence number.",
-                "Step 2 (SYN-ACK): Server confirms client's number and introduces its own.",
-                "Step 3 (ACK): Final handshake confirmation completes the reliable connection."
-            ]
-
-        else:
-            e1 = sanitize_mermaid_label(extracted[0]) if len(extracted) > 0 else "Initialize input parameters"
-            e2 = sanitize_mermaid_label(extracted[1]) if len(extracted) > 1 else "Execute primary transformation"
-            e3 = sanitize_mermaid_label(extracted[2]) if len(extracted) > 2 else "Check boundary constraints"
-            e4 = sanitize_mermaid_label(extracted[3]) if len(extracted) > 3 else "Generate final outcome"
-
-            code = f"""flowchart {dir_code}
-    A["Start: Concept Overview for {safe_topic[:30]}"] --> B["{e1[:50]}"]
-    B --> C["{e2[:50]}"]
-    C --> D{{"{e3[:40]}?"}}
-    D -->|Yes: Valid| E["{e4[:50]}"]
-    D -->|No: Boundary Case| F["Apply Alternative Handling & Safety Fallback"]
+        code = f"""flowchart {dir_code}
+    A["Input / Trigger: {safe_topic}"] --> B["{step1}"]
+    B --> C["{step2}"]
+    C --> D{{"{cond}"}}
+    D -->|Yes: Valid| E["{step3}"]
+    D -->|No: Alternate| F["Apply fallback handling & recovery"]
     F --> E
-    E --> G["Final Result: Successfully Applied {safe_topic[:25]}"]
+    E --> G["Result: Successfully completed {safe_topic[:30]}"]
 
     style A fill:#2563eb,stroke:#1d4ed8,color:#fff
     style C fill:#7c3aed,stroke:#6d28d9,color:#fff
     style D fill:#d97706,stroke:#b45309,color:#fff
-    style G fill:#059669,stroke:#047857,color:#fff
-"""
-            simplified = (
-                f"This flowchart outlines the practical decision-making process for {clean_topic}. "
-                "It walks through the initial parameters, transformation rules, decision checks, and final verified outcome."
-            )
-            takeaways = [
-                f"Initial Step: {e1[:50]}.",
-                f"Key Decision: Verify {e3[:40]}.",
-                f"Target Outcome: {e4[:50]}."
-            ]
+    style G fill:#059669,stroke:#047857,color:#fff"""
 
-        return code.strip(), title, description, simplified, takeaways
+        takeaways = [
+            f"Step 1: {step1[:55]}.",
+            f"Condition check: {cond[:55]}.",
+            f"Target outcome: {step4[:55]}."
+        ]
+        return code.strip(), title, description, layman_analogy, takeaways

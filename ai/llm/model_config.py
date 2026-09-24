@@ -27,21 +27,24 @@ class AIModelConfig:
         """Instantiate config from environment variables with fallback defaults."""
         endpoint = (
             os.getenv("AZURE_OPENAI_ENDPOINT")
+            or os.getenv("AZURE_FOUNDRY_ENDPOINT")
             or os.getenv("AZURE_EMBEDDING_ENDPOINT")
             or ""
         )
         api_key = (
             os.getenv("AZURE_OPENAI_KEY")
+            or os.getenv("AZURE_FOUNDRY_API_KEY")
             or os.getenv("AZURE_EMBEDDING_API_KEY")
             or ""
         )
         chat_deployment = (
             os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT")
-            or "gpt-4o-mini"
+            or os.getenv("AZURE_FOUNDRY_DEPLOYMENT")
+            or "gpt-4.1-mini"
         )
         api_version = (
             os.getenv("AZURE_OPENAI_API_VERSION")
-            or "2024-08-01-preview"
+            or "2024-02-15-preview"
         )
         
         try:

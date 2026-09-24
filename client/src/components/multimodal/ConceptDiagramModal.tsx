@@ -19,7 +19,12 @@ import {
   Activity,
   ArrowRightLeft,
   Share2,
-  Lightbulb
+  Lightbulb,
+  MessageSquare,
+  Send,
+  Mic,
+  MicOff,
+  HelpCircle
 } from 'lucide-react';
 import mermaid from 'mermaid';
 import { multimodalVisionService } from '../../services/multimodalVisionService';
@@ -91,6 +96,62 @@ export const ConceptDiagramModal: React.FC<ConceptDiagramModalProps> = ({
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [showCode, setShowCode] = useState<boolean>(false);
   const diagramContainerRef = useRef<HTMLDivElement>(null);
+
+  // In-Diagram Q&A state
+  const [questionText, setQuestionText] = useState<string>('');
+  const [isAsking, setIsAsking] = useState<boolean>(false);
+  const [qaAnswer, setQaAnswer] = useState<{
+    answer: string;
+    layman_explanation?: string;
+    key_points: string[];
+  } | null>(null);
+  const [isListeningMic, setIsListeningMic] = useState<boolean>(false);
+  const sttStopRef = useRef<(() => void) | null>(null);
+
+  const handleAskDiagramQuestion = async (overrideQ?: string) => {
+    const q = (overrideQ || questionText).trim();
+    if (!q || isAsking) return;
+    setIsAsking(true);
+    try {
+      const res = await multimodalVisionService.askDiagramQuestion({
+        topic: customTopic || initialTopic,
+        question: q,
+        contextText: textContent,
+        diagramCode: mermaidCode || undefined,
+        isLayman: true
+      });
+      setQaAnswer(res);
+      setQuestionText('');
+    } catch (err: any) {
+      console.error('Failed asking diagram question:', err);
+    } finally {
+      setIsAsking(false);
+    }
+  };
+
+  const handleToggleMic = () => {
+    if (isListeningMic) {
+      if (sttStopRef.current) {
+        sttStopRef.current();
+        sttStopRef.current = null;
+      }
+      setIsListeningMic(false);
+      return;
+    }
+    setIsListeningMic(true);
+    const controller = multimodalVisionService.startSpeechRecognition(
+      (spoken) => {
+        setQuestionText(prev => prev ? `${prev} ${spoken}` : spoken);
+      },
+      () => {
+        setIsListeningMic(false);
+      },
+      () => {
+        setIsListeningMic(false);
+      }
+    );
+    sttStopRef.current = controller.stop;
+  };
 
   // Recommended type for the currently selected topic
   const recommendedType = getRecommendedType(customTopic || initialTopic);
@@ -698,7 +759,7 @@ export const ConceptDiagramModal: React.FC<ConceptDiagramModalProps> = ({
                 <Lightbulb size={16} color="#ffffff" />
               </div>
               <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                Simplified Explanation for Learners
+                Intuitive Layman's Terms & Analogy
               </h4>
               <span
                 style={{
@@ -712,7 +773,7 @@ export const ConceptDiagramModal: React.FC<ConceptDiagramModalProps> = ({
                   marginLeft: 'auto'
                 }}
               >
-                Plain English & Analogy
+                Zero-Jargon Real World Intuition
               </span>
             </div>
 
@@ -813,6 +874,190 @@ export const ConceptDiagramModal: React.FC<ConceptDiagramModalProps> = ({
             </div>
           )}
         </div>
+
+        {/* Interactive In-Diagram Q&A Box */}
+        {mermaidCode && !isGenerating && (
+          <div
+            style={{
+              padding: '18px 20px',
+              borderRadius: '16px',
+              backgroundColor: 'var(--bg-surface-subtle)',
+              border: '1px solid var(--border-default)',
+              boxShadow: 'var(--shadow-sm)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div
+                  style={{
+                    width: '26px',
+                    height: '26px',
+                    borderRadius: '6px',
+                    backgroundColor: 'rgba(37, 99, 235, 0.12)',
+                    color: 'var(--accent-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <MessageSquare size={15} />
+                </div>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                  Ask About This Diagram
+                </h4>
+              </div>
+              <span style={{ fontSize: '0.71875rem', color: 'var(--text-secondary)' }}>
+                Answers strictly aligned to your topic & study material
+              </span>
+            </div>
+
+            {/* Quick question suggestion chips */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {[
+                'Explain in simple layman terms',
+                'What is the most critical step in this flow?',
+                'What happens if a failure or error occurs?',
+                'How does this relate to real-world applications?'
+              ].map((chip, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleAskDiagramQuestion(chip)}
+                  disabled={isAsking}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '12px',
+                    fontSize: '0.75rem',
+                    fontWeight: 500,
+                    backgroundColor: 'var(--bg-surface)',
+                    border: '1px solid var(--border-default)',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                    e.currentTarget.style.color = 'var(--accent-primary)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border-default)';
+                    e.currentTarget.style.color = 'var(--text-secondary)';
+                  }}
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+
+            {/* Input + Speech-to-text + Submit */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <input
+                type="text"
+                className="input-text"
+                placeholder="Ask any question about this diagram..."
+                value={questionText}
+                onChange={(e) => setQuestionText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAskDiagramQuestion();
+                }}
+                disabled={isAsking}
+                style={{ flex: 1, fontSize: '0.84375rem' }}
+              />
+
+              {/* Voice Mic Toggle (STT) */}
+              <button
+                type="button"
+                onClick={handleToggleMic}
+                className={`btn ${isListeningMic ? 'btn-danger' : 'btn-secondary'} btn-sm`}
+                style={{ padding: '8px 12px' }}
+                title={isListeningMic ? 'Stop microphone' : 'Speak question into microphone'}
+              >
+                {isListeningMic ? <MicOff size={16} className="animate-pulse" /> : <Mic size={16} />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleAskDiagramQuestion()}
+                disabled={!questionText.trim() || isAsking}
+                className="btn btn-primary btn-sm"
+                style={{ gap: '6px', padding: '8px 14px' }}
+              >
+                {isAsking ? (
+                  <>
+                    <Loader2 size={15} className="animate-spin" />
+                    <span>Thinking...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send size={15} />
+                    <span>Ask</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* In-diagram Answer Display */}
+            {qaAnswer && (
+              <div
+                style={{
+                  marginTop: '6px',
+                  padding: '14px 16px',
+                  borderRadius: '12px',
+                  backgroundColor: 'var(--bg-surface)',
+                  border: '1px solid var(--border-default)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>
+                    Tutor Answer
+                  </span>
+                  <span style={{ fontSize: '0.78125rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Topic: {qaAnswer.topic}
+                  </span>
+                </div>
+
+                <p style={{ fontSize: '0.84375rem', lineHeight: '1.6', color: 'var(--text-primary)', margin: 0 }}>
+                  {qaAnswer.answer}
+                </p>
+
+                {qaAnswer.layman_explanation && (
+                  <div
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      backgroundColor: 'rgba(124, 58, 237, 0.08)',
+                      border: '1px solid rgba(124, 58, 237, 0.25)',
+                      fontSize: '0.8125rem',
+                      lineHeight: '1.55',
+                      color: 'var(--text-primary)'
+                    }}
+                  >
+                    <strong style={{ color: '#a78bfa' }}>Layman's Analogy: </strong>
+                    {qaAnswer.layman_explanation}
+                  </div>
+                )}
+
+                {qaAnswer.key_points && qaAnswer.key_points.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {qaAnswer.key_points.map((pt, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', fontSize: '0.78125rem', color: 'var(--text-secondary)' }}>
+                        <Check size={13} color="#10b981" style={{ flexShrink: 0, marginTop: '3px' }} />
+                        <span>{pt}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
 
         {/* Collapsible Source Code Viewer */}
         {mermaidCode && !isGenerating && (

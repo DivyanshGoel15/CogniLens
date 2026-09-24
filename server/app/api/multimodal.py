@@ -349,6 +349,23 @@ class GenerateDiagramResponse(BaseModel):
     key_takeaways: Optional[List[str]] = None
 
 
+class DiagramQuestionRequest(BaseModel):
+    topic: str
+    question: str
+    context_text: Optional[str] = None
+    diagram_code: Optional[str] = None
+    slide_content: Optional[str] = None
+    is_layman: Optional[bool] = False
+
+
+class DiagramQuestionResponse(BaseModel):
+    answer: str
+    layman_explanation: Optional[str] = None
+    key_points: List[str] = []
+    topic: str
+
+
+
 @router.post("/analyze-material", response_model=MaterialAnalysisResponse)
 async def analyze_material(
     request: AnalyzeMaterialRequest,
@@ -453,7 +470,11 @@ async def generate_diagram_from_text(
     """Generate a topic-aligned Mermaid.js concept diagram with educational content and simplified explanation."""
     from server.app.services.diagram_synthesizer import generate_synthesized_diagram
 
+    foundry_endpoint = os.getenv("AZURE_FOUNDRY_ENDPOINT")
+    foundry_key = os.getenv("AZURE_FOUNDRY_API_KEY")
+    foundry_deployment = os.getenv("AZURE_FOUNDRY_DEPLOYMENT", "gpt-4.1-mini")
     gemini_key = os.getenv("GEMINI_API_KEY")
+
     text_snippet = request.text_content[:6000]
     topic_label = request.topic or "the given concept"
     diagram_type = request.diagram_type or "flowchart"
@@ -506,13 +527,13 @@ async def generate_diagram_from_text(
     selected_guideline = type_guidelines.get(diagram_type, type_guidelines["flowchart"])
 
     system_prompt = (
-        "You are CogniLens Educational AI Tutor. Your mission is to help students who find complex concepts difficult.\n"
+        "You are CogniLens Educational AI Tutor. Your mission is to help students understand complex concepts.\n"
         "Given a study topic and source text, you produce:\n"
         f"1. An educational Mermaid.js diagram following this specification:\n{selected_guideline}\n"
         "   - CRITICAL REQUIREMENT: Every single node in the diagram MUST display concrete, informative knowledge, rules, steps, or definitions about the topic. NEVER output generic roadmap placeholders like 'Phase 1: Ingestion', 'Step 1', 'Overview', 'Setup', 'Ingress', 'Transition State', 'Applications', 'System Boundaries', 'Deliver Result'. Every node MUST display real facts and mechanisms of the topic.\n"
         "   - Do NOT enclose mermaid_code in markdown backticks.\n"
-        "2. A simplified, plain-English explanation (analogies encouraged) so anyone who finds the topic difficult can understand it easily.\n"
-        "3. 3 concise key takeaways.\n\n"
+        "2. A simplified, plain-English explanation featuring a vivid, relatable everyday analogy (like traffic, sports, cooking, library, banking, postal delivery) tailored specifically to the user's topic so anyone who finds the topic difficult can understand it easily. Zero generic boilerplate!\n"
+        "3. 3 concise, topic-grounded key takeaways.\n\n"
         "OUTPUT FORMAT: Return ONLY a valid JSON object with keys:\n"
         "\"mermaid_code\" (string), \"title\" (string, max 7 words), \"description\" (string), "
         "\"simplified_explanation\" (string), \"key_takeaways\" (array of 3 strings)."
@@ -520,8 +541,61 @@ async def generate_diagram_from_text(
 
     user_prompt = f"Topic to explain: \"{topic_label}\"\n\nSource material context:\n{text_snippet}"
 
+    # 1. Try Azure Foundry first
+    if foundry_endpoint and foundry_key and foundry_deployment:
+        try:
+            from openai import AzureOpenAI
+            import json
+
+            client = AzureOpenAI(
+                azure_endpoint=foundry_endpoint,
+                api_key=foundry_key,
+                api_version="2024-02-15-preview"
+            )
+            chat_res = client.chat.completions.create(
+                model=foundry_deployment,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.25,
+            )
+            raw_text = chat_res.choices[0].message.content or "{}"
+            parsed = json.loads(raw_text)
+            raw_code = parsed.get("mermaid_code", "")
+            clean_code = (
+                raw_code.replace("```mermaid", "")
+                .replace("```", "")
+                .strip()
+            )
+
+            if clean_code and any(k in clean_code for k in ["flowchart", "graph", "mindmap", "sequenceDiagram", "stateDiagram", "classDiagram"]):
+                resp = GenerateDiagramResponse(
+                    mermaid_code=clean_code,
+                    title=parsed.get("title", f"{diagram_type.title()} of {topic_label}"),
+                    description=parsed.get("description", f"Visual representation of {topic_label}."),
+                    simplified_explanation=parsed.get("simplified_explanation"),
+                    key_takeaways=parsed.get("key_takeaways", []),
+                )
+                if user:
+                    try:
+                        repository.record_user_activity(
+                            db=db,
+                            user_id=user.id,
+                            title=f"Diagram Generated: {resp.title}",
+                            activity_type="multimodal",
+                            result_snippet=resp.description[:120],
+                        )
+                    except Exception:
+                        pass
+                return resp
+        except Exception as e:
+            logger.warning("Azure Foundry diagram generation error: %s", e)
+
+    # 2. Try Gemini
     if gemini_key:
-        models_to_try = ["gemini-3.1-flash-lite", "gemini-flash-latest"]
+        models_to_try = [os.getenv("GEMINI_MODEL", "gemini-2.0-flash"), "gemini-1.5-flash"]
         for model in models_to_try:
             try:
                 import httpx
@@ -571,7 +645,7 @@ async def generate_diagram_from_text(
             except Exception as e:
                 logger.warning("Gemini diagram generation error with model %s: %s", model, e)
 
-    # Topic-Aligned Educational Fallback Synthesizer
+    # 3. Topic-Aligned Educational Fallback Synthesizer
     synth_code, synth_title, synth_desc, synth_simple, synth_takeaways = generate_synthesized_diagram(
         topic=topic_label,
         text_content=text_snippet,
@@ -598,3 +672,125 @@ async def generate_diagram_from_text(
         simplified_explanation=synth_simple,
         key_takeaways=synth_takeaways,
     )
+
+
+@router.post("/ask-diagram-question", response_model=DiagramQuestionResponse)
+async def ask_diagram_question(
+    request: DiagramQuestionRequest,
+    user: Optional[UserModel] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
+    """Answer user questions directly about a diagram, grounded in the topic and provided material."""
+    foundry_endpoint = os.getenv("AZURE_FOUNDRY_ENDPOINT")
+    foundry_key = os.getenv("AZURE_FOUNDRY_API_KEY")
+    foundry_deployment = os.getenv("AZURE_FOUNDRY_DEPLOYMENT", "gpt-4.1-mini")
+    gemini_key = os.getenv("GEMINI_API_KEY")
+
+    system_prompt = (
+        "You are CogniLens Vision & Diagram Tutor. The user is asking a question while inspecting an academic diagram.\n"
+        "Your mission is to provide an accurate, clear answer strictly grounded in the topic, diagram components, and user's provided information.\n"
+        "CRITICAL RULES:\n"
+        "1. Direct & Grounded: Answer the question directly using facts, mechanisms, formulas, or steps from the material.\n"
+        "2. Layman's Terms & Analogy: In 'layman_explanation', explain the answer in plain English using a relatable, everyday real-world analogy (e.g. traffic, sports, cooking, library, banking, postal system) so anyone can grasp the concept intuitively without jargon.\n"
+        "3. Key Points: In 'key_points', supply 2-4 concise, impactful takeaways.\n"
+        "4. Output ONLY a valid JSON object with keys:\n"
+        "   \"answer\" (string), \"layman_explanation\" (string), \"key_points\" (array of strings).\n"
+    )
+
+    user_prompt = (
+        f"Topic: {request.topic}\n"
+        f"User Question: {request.question}\n"
+    )
+    if request.diagram_code:
+        user_prompt += f"\nDiagram Structure/Mermaid:\n{request.diagram_code[:2000]}\n"
+    if request.slide_content:
+        user_prompt += f"\nActive Slide Context:\n{request.slide_content[:1500]}\n"
+    if request.context_text:
+        user_prompt += f"\nProvided Document/Text Context:\n{request.context_text[:3000]}\n"
+
+    # Try Azure Foundry first
+    if foundry_endpoint and foundry_key and foundry_deployment:
+        try:
+            from openai import AzureOpenAI
+            import json
+
+            client = AzureOpenAI(
+                azure_endpoint=foundry_endpoint,
+                api_key=foundry_key,
+                api_version="2024-02-15-preview"
+            )
+            chat_res = client.chat.completions.create(
+                model=foundry_deployment,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.2,
+            )
+            raw_text = chat_res.choices[0].message.content or "{}"
+            parsed = json.loads(raw_text)
+            resp = DiagramQuestionResponse(
+                answer=parsed.get("answer", "Analysis grounded in topic and diagram."),
+                layman_explanation=parsed.get("layman_explanation"),
+                key_points=parsed.get("key_points", []),
+                topic=request.topic,
+            )
+            if user:
+                try:
+                    repository.record_user_activity(
+                        db=db,
+                        user_id=user.id,
+                        title=f"Diagram Q&A: {request.question[:60]}",
+                        activity_type="multimodal",
+                        result_snippet=resp.answer[:120],
+                    )
+                except Exception:
+                    pass
+            return resp
+        except Exception as e:
+            logger.warning("Azure Foundry diagram Q&A error: %s", e)
+
+    # Try Gemini as secondary
+    if gemini_key:
+        try:
+            import httpx
+            import json
+
+            model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
+            payload = {
+                "systemInstruction": {"parts": [{"text": system_prompt}]},
+                "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+                "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"},
+            }
+            async with httpx.AsyncClient(timeout=25.0) as client:
+                res = await client.post(url, json=payload)
+                if res.status_code == 200:
+                    data = res.json()
+                    text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    parsed = json.loads(text)
+                    resp = DiagramQuestionResponse(
+                        answer=parsed.get("answer", "Analysis grounded in topic and diagram."),
+                        layman_explanation=parsed.get("layman_explanation"),
+                        key_points=parsed.get("key_points", []),
+                        topic=request.topic,
+                    )
+                    return resp
+        except Exception as e:
+            logger.warning("Gemini diagram Q&A error: %s", e)
+
+    # Fallback answer
+    from server.app.services.diagram_synthesizer import generate_layman_analogy
+    analogy = generate_layman_analogy(request.topic, request.question + " " + (request.context_text or ""))
+    return DiagramQuestionResponse(
+        answer=f"Regarding {request.topic}: {request.question} addresses how this concept processes information, enforces invariants, and avoids failure states.",
+        layman_explanation=analogy,
+        key_points=[
+            f"Grounding: Based on the active {request.topic} diagram and provided context.",
+            "Verify all preconditions before triggering state transitions.",
+            "Follow the step-by-step lifecycle illustrated in the visual model."
+        ],
+        topic=request.topic,
+    )
+

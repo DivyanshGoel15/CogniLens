@@ -10,6 +10,7 @@ from typing import List, Dict, Any, Type, TypeVar, Optional, Tuple
 from pydantic import BaseModel
 from openai import AzureOpenAI, APIError
 
+from ai.llm.base_provider import BaseLLMProvider
 from ai.llm.model_config import AIModelConfig
 from ai.llm.structured_output import extract_and_parse_json
 
@@ -241,3 +242,44 @@ class AzureOpenAIService:
                     data[name] = []
 
         return extract_and_parse_json(str(data).replace("'", '"'), model_cls)
+
+
+class AzureOpenAIProvider(BaseLLMProvider):
+    """BaseLLMProvider implementation backed by Azure OpenAI / Foundry."""
+
+    def __init__(self, service: Optional[AzureOpenAIService] = None):
+        self.service = service or AzureOpenAIService()
+
+    def generate(
+        self,
+        prompt: str,
+        system_instruction: Optional[str] = None,
+        temperature: float = 0.2,
+        max_tokens: int = 1500,
+    ) -> str:
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        messages.append({"role": "user", "content": prompt})
+
+        content, _, _ = self.service.generate_chat_completion(
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        return content
+
+    def generate_structured(
+        self,
+        prompt: str,
+        response_model: Type[T],
+        system_instruction: Optional[str] = None,
+        temperature: float = 0.2,
+    ) -> T:
+        instance, _, _ = self.service.generate_structured_output(
+            prompt=prompt,
+            response_model=response_model,
+            system_prompt=system_instruction,
+            temperature=temperature,
+        )
+        return instance

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",
+    "cognilens": "file:..",
     "jszip": "^3.10.2",
     "lucide-react": "^1.16.0",
     "mermaid": "^12.0.0",

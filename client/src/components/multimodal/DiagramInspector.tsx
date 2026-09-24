@@ -19,7 +19,11 @@ import {
   Loader2,
   BookOpen,
   Network,
-  FileText
+  FileText,
+  Lightbulb,
+  MessageSquare,
+  Send,
+  Check
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useToast } from '../../context/ToastContext';
@@ -40,6 +44,7 @@ export interface DiagramItem {
     formula?: string;
     implication: string;
     extractedText?: string;
+    laymanExplanation?: string;
   };
 }
 
@@ -98,7 +103,8 @@ export const DIAGRAM_PRESETS: DiagramItem[] = [
         '12ms – 16ms: Process P1 resumes for its second quantum slice'
       ],
       formula: 'Average Waiting Time = ( (0 + 12 - 4) + 4 + 8 ) / 3 = 6.67ms',
-      implication: 'Round Robin optimizes interactive responsiveness and fairness, though frequent context switching adds kernel overhead.'
+      implication: 'Round Robin optimizes interactive responsiveness and fairness, though frequent context switching adds kernel overhead.',
+      laymanExplanation: 'Imagine a playground with one popular swing and 3 kids waiting in line. To be fair, a teacher blows a whistle every 4 minutes. When the whistle blows, the kid on the swing steps down and moves to the end of the line so the next kid can swing. No single kid hogs the swing, and everyone gets equal, predictable turns.'
     }
   },
   {
@@ -155,7 +161,8 @@ export const DIAGRAM_PRESETS: DiagramItem[] = [
         'Weight Optimization: Parameters update via SGD: W := W - α * dW'
       ],
       formula: '∂L / ∂W^[1] = (∂L / ∂a^[2]) · (∂a^[2] / ∂z^[2]) · (∂z^[2] / ∂a^[1]) · (∂a^[1] / ∂z^[1]) · X^T',
-      implication: 'ReLU activation eliminates vanishing gradients for positive inputs during deep backpropagation.'
+      implication: 'ReLU activation eliminates vanishing gradients for positive inputs during deep backpropagation.',
+      laymanExplanation: 'Imagine a restaurant kitchen team where three sous chefs chop ingredients and pass them forward to the head chef, who plates the soup. When a customer says the soup is too salty, the head chef walks backwards to the prep station, calculating exactly how much extra salt each sous chef added, and tells them how to adjust their pinch on the next order.'
     }
   },
   {
@@ -211,7 +218,8 @@ export const DIAGRAM_PRESETS: DiagramItem[] = [
         'Negative gradient step -α ∇J drives parameters towards optimum (w*, b*)'
       ],
       formula: '∇J(w, b) = [ ∂J/∂w, ∂J/∂b ]^T',
-      implication: 'Appropriate feature scaling (normalization) transforms eccentric ellipses into concentric circles for faster convergence.'
+      implication: 'Appropriate feature scaling (normalization) transforms eccentric ellipses into concentric circles for faster convergence.',
+      laymanExplanation: 'Imagine you are hiking down a foggy mountain trying to find the base camp at the bottom of the valley. With your vision blocked by fog, you use the soles of your boots to feel which direction slopes downward steepest, take a cautious step that way, and repeat until you stand safely at the flat valley bottom.'
     }
   }
 ];
